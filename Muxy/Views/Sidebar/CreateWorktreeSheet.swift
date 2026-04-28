@@ -123,12 +123,23 @@ struct CreateWorktreeSheet: View {
                 }
             }
             .padding(8)
-            .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 4))
+            .background(MuxyGlass.insetFill, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+            )
             Toggle("Run these commands after creating the worktree", isOn: $runSetup)
                 .font(.system(size: 11))
         }
         .padding(10)
-        .background(MuxyTheme.hover, in: RoundedRectangle(cornerRadius: 6))
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(MuxyGlass.insetFill)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+        )
     }
 
     private var setupCommandsGuideSection: some View {
@@ -155,10 +166,21 @@ struct CreateWorktreeSheet: View {
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(8)
-                .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 4))
+                .background(MuxyGlass.insetFill, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+                )
         }
         .padding(10)
-        .background(MuxyTheme.hover, in: RoundedRectangle(cornerRadius: 6))
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(MuxyGlass.insetFill)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+        )
     }
 
     private func loadSetupCommands() {

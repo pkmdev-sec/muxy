@@ -25,7 +25,7 @@ struct DiffBodyView: View {
                 VStack(spacing: 0) {
                     if diff.truncated, let onLoadFull {
                         truncatedBanner(onLoadFull: onLoadFull)
-                        Rectangle().fill(MuxyTheme.border).frame(height: 1)
+                        Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
                     }
 
                     switch mode {

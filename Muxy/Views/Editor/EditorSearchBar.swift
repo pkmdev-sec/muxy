@@ -40,9 +40,15 @@ struct EditorSearchBar: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
-            .background(MuxyTheme.bg.opacity(0.95))
+            .background(
+                VisualEffectView(
+                    material: MuxyMaterials.elevatedPanel,
+                    blendingMode: .withinWindow,
+                    state: .active
+                )
+            )
 
-            Rectangle().fill(MuxyTheme.border).frame(height: 1)
+            Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
         }
         .deferFocus($isFieldFocused, on: state.searchFocusVersion)
         .onKeyPress(.escape) {
@@ -88,11 +94,13 @@ struct EditorSearchBar: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(MuxyTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(MuxyGlass.insetFill)
+            )
             .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .strokeBorder(MuxyTheme.border, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.75)
             )
 
             Button(action: onPrevious) {
@@ -134,11 +142,13 @@ struct EditorSearchBar: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(MuxyTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(MuxyGlass.insetFill)
+            )
             .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .strokeBorder(MuxyTheme.border, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.75)
             )
 
             Button("Replace", action: onReplace)
@@ -158,8 +168,10 @@ private struct EditorSearchButtonStyle: ButtonStyle {
             .frame(width: 22, height: 22)
             .contentShape(Rectangle())
             .foregroundStyle(MuxyTheme.fgMuted)
-            .background(configuration.isPressed ? MuxyTheme.surface : .clear)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .background(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(configuration.isPressed ? MuxyGlass.pressedFill : Color.clear)
+            )
     }
 }
 
@@ -172,12 +184,14 @@ private struct EditorSearchTextButtonStyle: ButtonStyle {
             .foregroundStyle(isEnabled ? MuxyTheme.fg : MuxyTheme.fgDim)
             .padding(.horizontal, 8)
             .frame(height: 22)
-            .background(configuration.isPressed ? MuxyTheme.surface : MuxyTheme.bg)
-            .overlay(
-                RoundedRectangle(cornerRadius: 4)
-                    .strokeBorder(MuxyTheme.border, lineWidth: 1)
+            .background(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(configuration.isPressed ? MuxyGlass.pressedFill : MuxyGlass.insetFill)
             )
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .overlay(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+            )
     }
 }
 
@@ -194,7 +208,7 @@ private struct EditorSearchOptionToggle: View {
                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 .foregroundStyle(isOn ? MuxyTheme.fg : MuxyTheme.fgMuted)
                 .frame(width: 20, height: 18)
-                .background(isOn ? MuxyTheme.border : .clear)
+                .background(isOn ? MuxyTheme.accent.opacity(0.16) : .clear, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
                 .clipShape(RoundedRectangle(cornerRadius: 4))
         }
         .buttonStyle(.plain)

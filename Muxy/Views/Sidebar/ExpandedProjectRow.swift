@@ -149,7 +149,19 @@ struct ExpandedProjectRow: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        .background(headerBackground, in: RoundedRectangle(cornerRadius: 8))
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(headerBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(
+                    isActive
+                        ? MuxyTheme.accent.opacity(0.35)
+                        : (hovered ? MuxyGlass.borderSoft : Color.clear),
+                    lineWidth: 0.5
+                )
+        )
         .contentShape(RoundedRectangle(cornerRadius: 8))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(projectHeaderAccessibilityLabel)
@@ -203,18 +215,36 @@ struct ExpandedProjectRow: View {
         let logo = resolvedLogo
         let unread = NotificationStore.shared.unreadCount(for: project.id)
         return ZStack {
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(iconBackground(hasLogo: logo != nil))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [MuxyGlass.topHighlight.opacity(0.8), Color.clear],
+                                startPoint: .top,
+                                endPoint: .center
+                            ),
+                            lineWidth: 0.5
+                        )
+                        .blendMode(MuxyTheme.colorScheme == .light ? .normal : .plusLighter)
+                        .opacity(logo == nil ? 0.9 : 0)
+                )
+                .shadow(
+                    color: isActive ? MuxyTheme.accent.opacity(0.3) : Color.black.opacity(0.14),
+                    radius: isActive ? 5 : 1.5,
+                    y: 1
+                )
 
             if let logo {
                 Image(nsImage: logo)
                     .resizable()
                     .scaledToFill()
                     .frame(width: 24, height: 24)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             } else {
                 Text(displayLetter)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(letterForeground)
             }
         }
@@ -274,10 +304,19 @@ struct ExpandedProjectRow: View {
     private func iconBackground(hasLogo: Bool) -> AnyShapeStyle {
         if hasLogo { return AnyShapeStyle(Color.clear) }
         if let tint = ProjectIconColor.color(for: project.iconColor) {
-            return AnyShapeStyle(hovered ? tint.opacity(0.85) : tint)
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: [
+                        tint.opacity(hovered ? 1 : 0.95),
+                        tint.opacity(hovered ? 0.82 : 0.75),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
         }
-        if hovered { return AnyShapeStyle(MuxyTheme.hover) }
-        return AnyShapeStyle(MuxyTheme.surface)
+        if hovered { return AnyShapeStyle(MuxyGlass.hoverFill) }
+        return AnyShapeStyle(MuxyGlass.insetFill)
     }
 
     private var letterForeground: Color {
@@ -288,8 +327,21 @@ struct ExpandedProjectRow: View {
     }
 
     private var headerBackground: AnyShapeStyle {
-        if isActive { return AnyShapeStyle(MuxyTheme.accentSoft) }
-        if hovered { return AnyShapeStyle(MuxyTheme.hover) }
+        if isActive {
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: [
+                        MuxyTheme.accent.opacity(0.16),
+                        MuxyTheme.accent.opacity(0.08),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+        }
+        if hovered {
+            return AnyShapeStyle(MuxyGlass.hoverFill)
+        }
         return AnyShapeStyle(Color.clear)
     }
 
@@ -530,8 +582,19 @@ private struct ExpandedWorktreeRow: View {
     }
 
     private var rowBackground: AnyShapeStyle {
-        if selected { return AnyShapeStyle(MuxyTheme.accentSoft) }
-        if hovered { return AnyShapeStyle(MuxyTheme.hover) }
+        if selected {
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: [
+                        MuxyTheme.accent.opacity(0.18),
+                        MuxyTheme.accent.opacity(0.08),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+        }
+        if hovered { return AnyShapeStyle(MuxyGlass.hoverFill) }
         return AnyShapeStyle(Color.clear)
     }
 
@@ -581,10 +644,11 @@ private struct PrimaryBadge: View {
         Text("PRIMARY")
             .font(.system(size: 8, weight: .bold))
             .tracking(0.4)
-            .foregroundStyle(MuxyTheme.fgDim)
-            .padding(.horizontal, 4)
-            .padding(.vertical, 1)
-            .background(MuxyTheme.surface, in: Capsule())
+            .foregroundStyle(MuxyTheme.accent)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(MuxyTheme.accent.opacity(0.15), in: Capsule())
+            .overlay(Capsule().strokeBorder(MuxyTheme.accent.opacity(0.35), lineWidth: 0.5))
     }
 }
 

@@ -30,28 +30,39 @@ private struct FileResultRow: View {
     private var fileIcon: String {
         let ext = URL(fileURLWithPath: result.absolutePath).pathExtension.lowercased()
         switch ext {
-        case "swift": return "swift"
+        case "swift":
+            return "swift"
         case "js",
              "jsx",
-             "mjs": return "j.square"
+             "mjs":
+            return "j.square"
         case "ts",
              "tsx",
-             "mts": return "t.square"
-        case "py": return "p.square"
-        case "json": return "curlybraces"
+             "mts":
+            return "t.square"
+        case "py":
+            return "p.square"
+        case "json":
+            return "curlybraces"
         case "html",
-             "htm": return "chevron.left.forwardslash.chevron.right"
+             "htm":
+            return "chevron.left.forwardslash.chevron.right"
         case "css",
-             "scss": return "paintbrush"
+             "scss":
+            return "paintbrush"
         case "md",
-             "markdown": return "doc.richtext"
+             "markdown":
+            return "doc.richtext"
         case "yaml",
              "yml",
-             "toml": return "gearshape"
+             "toml":
+            return "gearshape"
         case "sh",
              "bash",
-             "zsh": return "terminal"
-        default: return "doc.text"
+             "zsh":
+            return "terminal"
+        default:
+            return "doc.text"
         }
     }
 
@@ -74,11 +85,21 @@ private struct FileResultRow: View {
             }
             Spacer()
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(isHighlighted ? MuxyTheme.surface : hovered ? MuxyTheme.hover : .clear)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(rowFill)
+        )
+        .padding(.horizontal, 6)
         .onHover { isHovered in
             hovered = isHovered
         }
+    }
+
+    private var rowFill: Color {
+        if isHighlighted { return MuxyGlass.selectionFill }
+        if hovered { return MuxyGlass.hoverFill }
+        return Color.clear
     }
 }

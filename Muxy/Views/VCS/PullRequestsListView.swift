@@ -8,7 +8,7 @@ struct PullRequestsListView: View {
     var body: some View {
         VStack(spacing: 0) {
             controlsBar
-            Rectangle().fill(MuxyTheme.border).frame(height: 1)
+            Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
             content
         }
     }
@@ -36,8 +36,14 @@ struct PullRequestsListView: View {
             }
             .padding(.horizontal, 6)
             .frame(height: 22)
-            .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 4))
-            .overlay(RoundedRectangle(cornerRadius: 4).stroke(MuxyTheme.border, lineWidth: 1))
+            .background(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(MuxyGlass.insetFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+            )
 
             Menu {
                 ForEach([
@@ -66,8 +72,14 @@ struct PullRequestsListView: View {
                 .foregroundStyle(MuxyTheme.fgMuted)
                 .padding(.horizontal, 6)
                 .frame(height: 22)
-                .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 4))
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(MuxyTheme.border, lineWidth: 1))
+                .background(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(MuxyGlass.insetFill)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+                )
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
@@ -114,7 +126,7 @@ struct PullRequestsListView: View {
                             isCheckingOut: state.checkingOutPRNumber == pr.number,
                             onCheckout: { onCheckout(pr) }
                         )
-                        Rectangle().fill(MuxyTheme.border).frame(height: 1)
+                        Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
                     }
                 }
             }
@@ -138,8 +150,14 @@ struct PullRequestsListView: View {
                 .foregroundStyle(MuxyTheme.fg)
                 .padding(.horizontal, 10)
                 .frame(height: 24)
-                .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(MuxyTheme.border, lineWidth: 1))
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(MuxyGlass.insetFill)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+                )
             }
             .buttonStyle(.plain)
         }
@@ -207,7 +225,7 @@ struct PullRequestRow: View {
         }
         .padding(.horizontal, 10)
         .frame(height: 44)
-        .background(hovered ? MuxyTheme.surface : MuxyTheme.bg)
+        .background(hovered ? MuxyGlass.hoverFill : Color.clear)
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
         .onTapGesture(perform: onCheckout)
@@ -268,7 +286,7 @@ struct PullRequestRow: View {
             .padding(.horizontal, 8)
             .frame(height: 22)
             .background(MuxyTheme.bg, in: RoundedRectangle(cornerRadius: 4))
-            .overlay(RoundedRectangle(cornerRadius: 4).stroke(MuxyTheme.border, lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5))
         }
         .buttonStyle(.plain)
         .disabled(isCheckingOut)

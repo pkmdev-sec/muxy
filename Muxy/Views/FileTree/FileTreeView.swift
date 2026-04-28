@@ -31,7 +31,7 @@ struct FileTreeView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            Rectangle().fill(MuxyTheme.border).frame(height: 1)
+            Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
             ScrollView {
                 ZStack(alignment: .top) {
                     emptySpaceTarget
@@ -61,7 +61,7 @@ struct FileTreeView: View {
             }
             .background(rootDropTarget)
         }
-        .background(MuxyTheme.bg)
+        .background(FileTreePanelBackground())
         .background(keyboardShortcuts)
         .contentShape(Rectangle())
         .focusable()
@@ -329,9 +329,9 @@ private struct FileTreeRow: View {
     }
 
     private var rowBackground: Color {
-        if isDropHighlighted { return MuxyTheme.accentSoft }
-        if isSelected { return MuxyTheme.accentSoft }
-        if hovered { return MuxyTheme.hover }
+        if isDropHighlighted { return MuxyGlass.selectionFill }
+        if isSelected { return MuxyGlass.selectionFill }
+        if hovered { return MuxyGlass.hoverFill }
         return .clear
     }
 
@@ -585,6 +585,26 @@ private struct FileTreeDropDelegate: DropDelegate {
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
                 continuation.resume(returning: url)
             }
+        }
+    }
+}
+
+private struct FileTreePanelBackground: View {
+    var body: some View {
+        ZStack {
+            VisualEffectView(
+                material: MuxyMaterials.sidebarChrome,
+                blendingMode: .behindWindow,
+                state: .followsWindowActiveState
+            )
+            LinearGradient(
+                colors: [
+                    MuxyTheme.bg.opacity(MuxyTheme.colorScheme == .light ? 0.05 : 0.15),
+                    MuxyTheme.bg.opacity(MuxyTheme.colorScheme == .light ? 0 : 0.08),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         }
     }
 }

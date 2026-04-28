@@ -38,11 +38,13 @@ struct TerminalSearchBar: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(MuxyTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(MuxyGlass.insetFill)
+                )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .strokeBorder(MuxyTheme.border, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.75)
                 )
 
                 Button(action: onNavigatePrevious) {
@@ -68,9 +70,21 @@ struct TerminalSearchBar: View {
             }
             .padding(.horizontal, 8)
             .frame(height: 32)
-            .background(MuxyTheme.bg.opacity(0.95))
+            .background(
+                VisualEffectView(
+                    material: MuxyMaterials.elevatedPanel,
+                    blendingMode: .withinWindow,
+                    state: .active
+                )
+            )
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(MuxyGlass.topHighlight)
+                    .frame(height: 0.5)
+                    .blendMode(MuxyTheme.colorScheme == .light ? .normal : .plusLighter)
+            }
 
-            Rectangle().fill(MuxyTheme.border).frame(height: 1)
+            Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
         }
         .deferFocus($isFieldFocused, on: searchState.focusVersion)
         .onKeyPress(.escape) {
@@ -86,7 +100,9 @@ private struct SearchBarButtonStyle: ButtonStyle {
             .frame(width: 22, height: 22)
             .contentShape(Rectangle())
             .foregroundStyle(MuxyTheme.fgMuted)
-            .background(configuration.isPressed ? MuxyTheme.surface : .clear)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .background(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(configuration.isPressed ? MuxyGlass.pressedFill : Color.clear)
+            )
     }
 }

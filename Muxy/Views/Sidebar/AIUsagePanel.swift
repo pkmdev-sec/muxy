@@ -39,12 +39,25 @@ struct AIUsagePreviewButton: View {
                     .minimumScaleFactor(0.8)
             }
         }
+        .padding(.horizontal, 6)
         .frame(height: 24)
+        .background {
+            if hovered {
+                Capsule(style: .continuous).fill(MuxyGlass.hoverFill)
+                Capsule(style: .continuous).strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+            }
+        }
     }
 
     private var compactLabel: some View {
         iconGlyph
             .frame(width: 24, height: 24)
+            .background {
+                if hovered {
+                    Circle().fill(MuxyGlass.hoverFill)
+                    Circle().strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+                }
+            }
     }
 
     @ViewBuilder
@@ -71,6 +84,8 @@ struct AIUsagePanel: View {
         return formatter
     }()
 
+    @State private var refreshHovered = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
@@ -91,11 +106,18 @@ struct AIUsagePanel: View {
                                 .font(.system(size: 11, weight: .semibold))
                         }
                     }
-                    .frame(width: 14, height: 14)
+                    .frame(width: 18, height: 18)
+                    .background {
+                        if refreshHovered, !isRefreshing {
+                            Circle().fill(MuxyGlass.hoverFill)
+                            Circle().strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+                        }
+                    }
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(MuxyTheme.fgMuted)
                 .disabled(isRefreshing)
+                .onHover { refreshHovered = $0 }
                 .help("Refresh usage")
                 if let lastRefreshDate {
                     Text(Self.relativeFormatter.localizedString(for: lastRefreshDate, relativeTo: Date()))
@@ -112,15 +134,28 @@ struct AIUsagePanel: View {
 
             if !snapshots.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    ForEach(snapshots) { snapshot in
+                    ForEach(Array(snapshots.enumerated()), id: \.element.id) { index, snapshot in
+                        if index > 0 {
+                            Rectangle()
+                                .fill(MuxyGlass.borderSoft)
+                                .frame(height: 1)
+                        }
                         AIProviderUsageView(snapshot: snapshot)
                     }
                 }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            GlassPanelBackground(
+                material: MuxyMaterials.popoverMaterial,
+                cornerRadius: 12
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(color: MuxyGlass.shadow, radius: 14, y: 6)
+        .shadow(color: MuxyGlass.ambientShadow, radius: 4, y: 1)
     }
 }
 
@@ -362,7 +397,13 @@ struct AIUsageMetricRowView: View {
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(isPinned ? MuxyTheme.accent : (pinHovered ? MuxyTheme.fg : MuxyTheme.fgMuted))
                             .rotationEffect(.degrees(45))
-                            .frame(width: 14, height: 14)
+                            .frame(width: 16, height: 16)
+                            .background {
+                                if pinHovered || isPinned {
+                                    Circle().fill(MuxyGlass.hoverFill)
+                                    Circle().strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+                                }
+                            }
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -384,9 +425,7 @@ struct AIUsageMetricRowView: View {
             }
 
             if let percent = displayPercent {
-                ProgressView(value: percent, total: 100)
-                    .tint(MuxyTheme.accent)
-                    .controlSize(.small)
+                AIUsageProgressBar(percent: percent)
             }
 
             if let resetDate = row.resetDate {
@@ -406,5 +445,36 @@ struct AIUsageMetricRowView: View {
                 }
             }
         }
+    }
+}
+
+private struct AIUsageProgressBar: View {
+    let percent: Double
+
+    private var clamped: Double {
+        max(0, min(100, percent))
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule(style: .continuous)
+                    .fill(MuxyTheme.accentSoft)
+                Capsule(style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [MuxyTheme.accent, MuxyTheme.accent.opacity(0.75)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+                    )
+                    .frame(width: proxy.size.width * CGFloat(clamped / 100))
+            }
+        }
+        .frame(height: 4)
     }
 }

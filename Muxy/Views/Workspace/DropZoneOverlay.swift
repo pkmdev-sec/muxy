@@ -6,12 +6,34 @@ struct DropZoneHighlight: View {
     var body: some View {
         GeometryReader { geo in
             let rect = highlightRect(in: geo.size)
-            RoundedRectangle(cornerRadius: 4)
-                .fill(MuxyTheme.accent.opacity(0.15))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .strokeBorder(MuxyTheme.accent.opacity(0.4), lineWidth: 2)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            MuxyTheme.accent.opacity(0.22),
+                            MuxyTheme.accent.opacity(0.10),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
                 )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(MuxyTheme.accent.opacity(0.65), lineWidth: 1.25)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [MuxyGlass.topHighlight, Color.clear],
+                                startPoint: .top,
+                                endPoint: .center
+                            ),
+                            lineWidth: 1
+                        )
+                        .blendMode(MuxyTheme.colorScheme == .light ? .normal : .plusLighter)
+                )
+                .shadow(color: MuxyTheme.accent.opacity(0.35), radius: 10, y: 0)
                 .frame(width: rect.width, height: rect.height)
                 .offset(x: rect.minX, y: rect.minY)
         }

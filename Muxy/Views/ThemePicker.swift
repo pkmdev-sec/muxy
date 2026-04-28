@@ -52,7 +52,7 @@ private struct ThemeRow: View {
                 if isActive {
                     Image(systemName: "checkmark")
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(MuxyTheme.accent)
                 }
             }
 
@@ -74,12 +74,23 @@ private struct ThemeRow: View {
             .clipShape(RoundedRectangle(cornerRadius: 3))
             .overlay(
                 RoundedRectangle(cornerRadius: 3)
-                    .strokeBorder(MuxyTheme.border, lineWidth: 0.5)
+                    .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
             )
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(isHighlighted ? MuxyTheme.surface : (hovered ? MuxyTheme.hover : .clear))
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(rowFill)
+        )
+        .padding(.horizontal, 6)
+        .padding(.vertical, 1)
         .onHover { hovered = $0 }
+    }
+
+    private var rowFill: Color {
+        if isHighlighted { return MuxyGlass.selectionFill }
+        if hovered { return MuxyGlass.hoverFill }
+        return Color.clear
     }
 }

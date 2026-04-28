@@ -60,7 +60,7 @@ struct PopoverPicker<Item: Identifiable, RowContent: View>: View {
                 row: row
             )
             if !footerActions.isEmpty {
-                Divider().overlay(MuxyTheme.border.opacity(0.55))
+                Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
                 VStack(spacing: 0) {
                     ForEach(footerActions) { footerAction in
                         footerButton(
@@ -74,7 +74,13 @@ struct PopoverPicker<Item: Identifiable, RowContent: View>: View {
             }
         }
         .frame(width: 300, height: 420)
-        .background(MuxyTheme.bg)
+        .background(
+            GlassPanelBackground(
+                material: MuxyMaterials.popoverMaterial,
+                cornerRadius: 12
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func footerButton(

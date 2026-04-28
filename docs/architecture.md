@@ -136,6 +136,8 @@ Muxy/
       DataGrammars.swift      JSON, YAML, TOML, INI, SQL, Dockerfile, Makefile
   Theme/
     MuxyTheme.swift           Color system derived from Ghostty palette
+    MuxyMaterials.swift       Premium material/vibrancy/motion token system (MuxyMaterials, MuxyGlass, MuxyMotion)
+    VisualEffectView.swift    NSVisualEffectView SwiftUI bridge (behind-window/within-window vibrancy)
   Views/
     NotificationPanel.swift   Notification list popover (bell icon in sidebar footer)
     MainWindow.swift          Main window layout (sidebar + workspace)
@@ -150,7 +152,8 @@ Muxy/
     ThemePicker.swift         Theme selection popover (hosted in topbar right)
     WelcomeView.swift         Empty state view
     Components/
-      IconButton.swift        Reusable icon button
+      GlassPanel.swift        Premium glass container primitives (GlassPanel, GlassPanelBackground, GlassCard, GlassChip) with vibrancy, top-highlight, soft border, and ambient shadow
+      IconButton.swift        Reusable icon button with glass hover chip
       FileDiffIcon.swift      Git diff file icon (SVG shape)
       FileTreeIcon.swift      File tree toggle button (SF symbol)
       WindowDragView.swift    NSView for window title bar dragging
@@ -692,3 +695,82 @@ Until the handshake succeeds the server rejects every other RPC with
 in that set. The `Mobile` tab in Settings lists approved devices with a Revoke
 action, which removes the device from storage and terminates any active
 connection for that `deviceID` via `MuxyRemoteServer.disconnect(deviceID:)`.
+
+## Visual System (Premium macOS Glass UI)
+
+Muxy renders a premium, translucent, native-macOS look built on three pillars:
+vibrancy (`NSVisualEffectView` behind every chrome region), a theme-aware glass
+token set that stays coherent across every Ghostty theme, and spring-based
+micro-interactions.
+
+### Foundation
+
+- **`Theme/VisualEffectView.swift`** — AppKit `NSVisualEffectView` bridged into
+  SwiftUI. Supports behind-window and within-window blending, emphasis, and
+  masked corner radii. Every glass surface sits on top of one of these.
+- **`Theme/MuxyMaterials.swift`** — two enums of tokens used everywhere:
+  - `MuxyMaterials` selects the correct `NSVisualEffectView.Material` for each
+    role: `windowChrome` (top bar, light `headerView`/dark `sidebar`),
+    `sidebarChrome`, `popoverMaterial` / `overlayMaterial` (HUD),
+    `elevatedPanel` (menus, toolbars), `sheetMaterial` (sheets).
+  - `MuxyGlass` exposes color tokens that adapt to `MuxyTheme.colorScheme`
+    (derived from the Ghostty background luminance): `topHighlight`,
+    `bottomShade`, `borderSoft` / `borderStrong`, `shadow` / `ambientShadow`,
+    `insetFill`, `hoverFill`, `pressedFill`, `selectionFill`, `accentGlow`.
+  - `MuxyMotion` defines the canonical spring/ease animations:
+    `fast` / `standard` / `gentle` / `hover` / `fade`.
+- **`Views/Components/GlassPanel.swift`** — reusable primitives:
+  - `GlassPanel { … }` floating panel (material + inner tint + gradient
+    top-to-bottom border + soft + ambient shadow, clipped to continuous
+    rounded rect). Four elevation tiers: `.flat`, `.raised`, `.floating`,
+    `.overlay`.
+  - `GlassPanelBackground` — raw background layer when custom clipping is
+    needed.
+  - `GlassCard` — inset glass card for panel interiors.
+  - `GlassChip` — small capsule for status pills (supports accent tint and
+    emphasized solid-fill variants).
+
+### Window Chrome
+
+`MuxyApp.WindowConfigurator` sets the main window to `isOpaque = false` with a
+`.clear` background so `behindWindow` vibrancy layers show through. The
+traffic-light-adjusted title bar stays decoration-free. `MainWindow` composes
+three chrome layers:
+
+- **`TopBarChrome`** — vibrancy + vertical tint gradient + 0.5pt top highlight.
+- **`SidebarChrome`** — `.sidebar` vibrancy + subtle vertical tint.
+- **`WorkspaceBackground`** — the stable Ghostty-themed solid fill with a soft
+  top-highlight wash so the translucent chrome reads as lifted above content.
+
+The Ghostty Metal surface is intentionally kept opaque so terminal rendering
+stays pixel-stable; all translucency is in chrome and overlays.
+
+### Primary Surfaces Upgraded
+
+- **Sidebar project icons** (`Views/Sidebar/ProjectRow.swift`,
+  `ExpandedProjectRow.swift`) — gradient tinted icons, top-edge highlight,
+  accent shadow on active, hover scale micro-interaction, spring animation on
+  selection.
+- **Tab strip** (`Views/Workspace/TabStrip.swift`) — gradient active fill with
+  glass top-highlight, refined accent underline indicator with glow,
+  hover/pressed states on the close chip, glass hairline separators.
+- **Overlays/popovers** — `PaletteOverlay`, `SearchableListPicker`,
+  `PopoverPicker`, `ThemePicker`, `NotificationPanel`, `AIUsagePanel`,
+  `ProjectIconColorPicker` all use `GlassPanel` / `GlassPanelBackground` with
+  HUD vibrancy, soft border, and ambient shadow.
+- **Search bars & breadcrumbs** (Editor + Terminal) — vibrancy-backed
+  (`elevatedPanel`) with glass inset input fields and soft hairlines.
+- **Drop zones** — accent-tinted glass plate with gradient border and glow.
+- **File tree** — `FileTreePanelBackground` sidebar vibrancy; row highlights
+  use `MuxyGlass.selectionFill` / `hoverFill`.
+- **Empty + welcome states** — hero icon with radial accent halo, gradient
+  accent CTA button with shadow glow.
+- **VCS tab** — gradient primary buttons (Commit, Merge, Create PR), glass
+  inset fields, soft hairline dividers, chip-style state badges.
+
+### Motion
+
+`MuxyMotion` springs are applied to hover fades (`MuxyMotion.hover`), press
+feedback (`MuxyMotion.fast`), and selection/state transitions
+(`MuxyMotion.standard` / `.gentle`), keeping micro-interactions consistent and
+native-feeling across the app.

@@ -32,7 +32,7 @@ struct SplitContainer: View {
 
                 Color.clear
                     .frame(width: h ? 1 : nil, height: h ? nil : 1)
-                    .overlay(Rectangle().fill(MuxyTheme.border))
+                    .overlay(Rectangle().fill(MuxyGlass.borderSoft))
                     .overlay {
                         Color.clear
                             .frame(width: h ? 5 : nil, height: h ? nil : 5)

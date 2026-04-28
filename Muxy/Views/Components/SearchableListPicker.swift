@@ -21,7 +21,7 @@ struct SearchableListPicker<Item: Identifiable, RowContent: View>: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(MuxyTheme.fgMuted)
-                    .font(.system(size: 12))
+                    .font(.system(size: 12, weight: .medium))
                     .accessibilityHidden(true)
                 PaletteSearchField(
                     text: $searchText,
@@ -36,7 +36,9 @@ struct SearchableListPicker<Item: Identifiable, RowContent: View>: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
 
-            Divider().overlay(MuxyTheme.border)
+            Rectangle()
+                .fill(MuxyGlass.borderSoft)
+                .frame(height: 1)
 
             if filteredItems.isEmpty {
                 Text(emptyLabel)
@@ -63,7 +65,12 @@ struct SearchableListPicker<Item: Identifiable, RowContent: View>: View {
                 }
             }
         }
-        .background(MuxyTheme.bg)
+        .background(
+            GlassPanelBackground(
+                material: MuxyMaterials.popoverMaterial,
+                cornerRadius: 12
+            )
+        )
         .onChange(of: searchText) { highlightedIndex = filteredItems.isEmpty ? nil : 0 }
     }
 

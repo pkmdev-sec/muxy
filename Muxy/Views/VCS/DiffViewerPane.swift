@@ -8,7 +8,7 @@ struct DiffViewerPane: View {
     var body: some View {
         VStack(spacing: 0) {
             DiffViewerBreadcrumb(state: state)
-            Rectangle().fill(MuxyTheme.border).frame(height: 1)
+            Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
             ScrollView([.vertical]) {
                 DiffBodyView(
                     isLoading: state.vcs.diffCache.isLoading(state.filePath),
@@ -54,7 +54,7 @@ private struct DiffViewerBreadcrumb: View {
                     .foregroundStyle(MuxyTheme.fgMuted)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1)
-                    .background(MuxyTheme.surface, in: Capsule())
+                    .background(MuxyGlass.insetFill, in: Capsule())
             }
 
             if let diff = loadedDiff {
@@ -89,8 +89,14 @@ private struct DiffViewerBreadcrumb: View {
             modeButton(.split, symbol: "rectangle.split.2x1", tooltip: "Side by side")
             modeButton(.unified, symbol: "rectangle", tooltip: "Inline")
         }
-        .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 5))
-        .overlay(RoundedRectangle(cornerRadius: 5).stroke(MuxyTheme.border, lineWidth: 1))
+        .background(
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(MuxyGlass.insetFill)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+        )
     }
 
     private func modeButton(_ mode: VCSTabState.ViewMode, symbol: String, tooltip: String) -> some View {

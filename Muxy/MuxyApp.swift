@@ -59,9 +59,9 @@ struct MuxyApp: App {
                         )
                     }
                     appDelegate.flushPendingOpens()
-                    NotificationSocketServer.shared.openProjectHandler = { [appDelegate] path in
+                    NotificationSocketServer.shared.openProjectHandler = { path in
                         Task { @MainActor in
-                            appDelegate.handleOpenProjectPath(path)
+                            AppDelegate.shared?.handleOpenProjectPath(path)
                         }
                     }
                     MobileServerService.shared.configure { server in
@@ -122,6 +122,8 @@ struct MuxyApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    nonisolated(unsafe) static var shared: AppDelegate?
+
     var onTerminate: (() -> Void)?
     var hasUnsavedEditorTabs: (() -> [EditorTabState])?
     var openProjectFromPath: ((String) -> Void)?
@@ -200,6 +202,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppDelegate.shared = self
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
         setAppIcon()
@@ -341,8 +344,10 @@ struct WindowConfigurator: NSViewRepresentable {
     }
 
     private static func applyWindowBackground(_ window: NSWindow) {
-        window.isOpaque = true
-        window.backgroundColor = MuxyTheme.nsBg
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = true
+        window.invalidateShadow()
     }
 
     static func neutralizeSafeAreaInsets(in window: NSWindow) {

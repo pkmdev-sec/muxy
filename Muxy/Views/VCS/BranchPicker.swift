@@ -34,7 +34,7 @@ struct BranchPicker: View {
             .foregroundStyle(MuxyTheme.fg.opacity(0.85))
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
-            .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 5))
+            .background(MuxyGlass.insetFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: 5))
         }
         .buttonStyle(.plain)
@@ -125,8 +125,8 @@ private struct BranchRow: View {
 
     private var rowBackground: AnyShapeStyle {
         if isActive { return AnyShapeStyle(MuxyTheme.accentSoft) }
-        if isHighlighted { return AnyShapeStyle(MuxyTheme.surface) }
-        if hovered { return AnyShapeStyle(MuxyTheme.hover) }
+        if isHighlighted { return AnyShapeStyle(MuxyGlass.selectionFill) }
+        if hovered { return AnyShapeStyle(MuxyGlass.hoverFill) }
         return AnyShapeStyle(Color.clear)
     }
 }

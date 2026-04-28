@@ -46,7 +46,7 @@ struct NotificationPanel: View {
                 emptyState
             } else {
                 header
-                Divider().overlay(MuxyTheme.border)
+                Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
                 notificationList(currentItems)
             }
         }
@@ -88,7 +88,13 @@ struct NotificationPanel: View {
             }
             .padding(.vertical, 4)
         }
-        .background(MuxyTheme.bg)
+        .background(
+            GlassPanelBackground(
+                material: MuxyMaterials.popoverMaterial,
+                cornerRadius: 12
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var emptyState: some View {
@@ -102,7 +108,7 @@ struct NotificationPanel: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
 
-            Divider().overlay(MuxyTheme.border)
+            Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
 
             VStack(spacing: 8) {
                 Spacer()
@@ -116,7 +122,13 @@ struct NotificationPanel: View {
             }
             .frame(maxWidth: .infinity)
         }
-        .background(MuxyTheme.bg)
+        .background(
+            GlassPanelBackground(
+                material: MuxyMaterials.popoverMaterial,
+                cornerRadius: 12
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func notificationAccessibilityLabel(for item: NotificationPanelItem) -> String {
@@ -180,7 +192,15 @@ private struct NotificationRow: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(isHighlighted ? MuxyTheme.surface : (hovered ? MuxyTheme.hover : .clear))
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(
+                    isHighlighted
+                        ? MuxyGlass.selectionFill
+                        : (hovered ? MuxyGlass.hoverFill : Color.clear)
+                )
+                .padding(.horizontal, 4)
+        )
         .onHover { hovered = $0 }
     }
 
@@ -192,7 +212,8 @@ private struct NotificationRow: View {
                 .font(.system(size: 8, weight: .bold))
                 .foregroundStyle(MuxyTheme.fgMuted)
                 .frame(width: 14, height: 14)
-                .background(MuxyTheme.surface, in: Circle())
+                .background(MuxyGlass.insetFill, in: Circle())
+                .overlay(Circle().strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Dismiss Notification")

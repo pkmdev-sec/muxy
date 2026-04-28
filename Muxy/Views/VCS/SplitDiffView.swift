@@ -51,7 +51,7 @@ struct SplitDiffView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Rectangle().fill(MuxyTheme.border).frame(width: 1)
+            Rectangle().fill(MuxyGlass.borderSoft).frame(width: 1)
 
             DiffGutterBridge(metadata: rightMeta, filePath: filePath, mode: .singleNew, columnWidth: numberColumnWidth)
                 .frame(width: numberColumnWidth + 1, height: height)
