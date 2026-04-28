@@ -16,9 +16,7 @@ protocol GhosttyRuntimeEventHandling {
 
 final class GhosttyRuntimeEventAdapter: GhosttyRuntimeEventHandling {
     func wakeup() {
-        DispatchQueue.main.async {
-            GhosttyService.shared.tick()
-        }
+        GhosttyService.scheduleTick()
     }
 
     func action(app: ghostty_app_t?, target: ghostty_target_s, action: ghostty_action_s) -> Bool {

@@ -11,11 +11,9 @@ final class NotificationSocketServer: @unchecked Sendable {
     private let queue = DispatchQueue(label: "app.muxy.notificationSocket")
     var openProjectHandler: (@Sendable (String) -> Void)?
 
-    static var socketPath: String {
-        MuxyFileStorage.appSupportDirectory()
-            .appendingPathComponent("muxy.sock")
-            .path
-    }
+    static let socketPath: String = MuxyFileStorage.appSupportDirectory()
+        .appendingPathComponent("muxy.sock")
+        .path
 
     private init() {}
 

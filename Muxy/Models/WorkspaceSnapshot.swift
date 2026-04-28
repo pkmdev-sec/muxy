@@ -252,3 +252,10 @@ enum WorkspaceRestorer {
         }
     }
 }
+
+extension WorkspaceSnapshot: Sendable {}
+extension SplitNodeSnapshot: Sendable {}
+extension SplitBranchSnapshot: Sendable {}
+extension SplitDirectionSnapshot: Sendable {}
+extension TabAreaSnapshot: Sendable {}
+extension TerminalTabSnapshot: Sendable {}

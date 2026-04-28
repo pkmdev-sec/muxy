@@ -71,14 +71,21 @@ final class TextBackingStore {
         let range: NSRange
     }
 
-    func search(needle: String, caseSensitive: Bool, useRegex: Bool) -> [SearchMatch] {
-        guard !needle.isEmpty else { return [] }
+    struct SearchResult {
+        let matches: [SearchMatch]
+        let invalidRegex: Bool
+    }
+
+    func searchDetailed(needle: String, caseSensitive: Bool, useRegex: Bool) -> SearchResult {
+        guard !needle.isEmpty else { return SearchResult(matches: [], invalidRegex: false) }
         var matches: [SearchMatch] = []
 
         if useRegex {
             var options: NSRegularExpression.Options = [.anchorsMatchLines]
             if !caseSensitive { options.insert(.caseInsensitive) }
-            guard let regex = try? NSRegularExpression(pattern: needle, options: options) else { return [] }
+            guard let regex = try? NSRegularExpression(pattern: needle, options: options) else {
+                return SearchResult(matches: [], invalidRegex: true)
+            }
 
             for (lineIndex, line) in lines.enumerated() {
                 let nsLine = line as NSString
@@ -105,6 +112,10 @@ final class TextBackingStore {
             }
         }
 
-        return matches
+        return SearchResult(matches: matches, invalidRegex: false)
+    }
+
+    func search(needle: String, caseSensitive: Bool, useRegex: Bool) -> [SearchMatch] {
+        searchDetailed(needle: needle, caseSensitive: caseSensitive, useRegex: useRegex).matches
     }
 }

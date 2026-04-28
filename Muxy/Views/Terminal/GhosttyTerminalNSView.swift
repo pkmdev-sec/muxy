@@ -16,6 +16,13 @@ final class GhosttyTerminalNSView: NSView {
     var onSearchSelected: ((Int?) -> Void)?
     var isFocused: Bool = false
     var overlayActive: Bool = false
+    var isVisible: Bool = true {
+        didSet { applyOcclusion() }
+    }
+
+    var isWindowOccluded: Bool = false {
+        didSet { applyOcclusion() }
+    }
 
     var processExitHandled = false
 
@@ -136,6 +143,7 @@ final class GhosttyTerminalNSView: NSView {
         }
 
         ghostty_surface_set_focus(surface, isFocused)
+        applyOcclusion()
 
         if let paneID = TerminalViewRegistry.shared.paneID(for: self) {
             RemoteTerminalStreamer.shared.attach(paneID: paneID, surface: surface)
@@ -165,6 +173,10 @@ final class GhosttyTerminalNSView: NSView {
             NotificationCenter.default.removeObserver(observer)
             screenChangeObserver = nil
         }
+        if let observer = occlusionObserver {
+            NotificationCenter.default.removeObserver(observer)
+            occlusionObserver = nil
+        }
         delayedResizeWorkItem?.cancel()
         delayedResizeWorkItem = nil
         destroySurface()
@@ -173,6 +185,7 @@ final class GhosttyTerminalNSView: NSView {
 
     deinit {
         screenChangeObserver.flatMap { NotificationCenter.default.removeObserver($0) }
+        occlusionObserver.flatMap { NotificationCenter.default.removeObserver($0) }
         delayedResizeWorkItem?.cancel()
         if let surface {
             ghostty_surface_free(surface)
@@ -180,7 +193,14 @@ final class GhosttyTerminalNSView: NSView {
     }
 
     nonisolated(unsafe) private var screenChangeObserver: NSObjectProtocol?
+    nonisolated(unsafe) private var occlusionObserver: NSObjectProtocol?
     nonisolated(unsafe) private var delayedResizeWorkItem: DispatchWorkItem?
+
+    private func applyOcclusion() {
+        guard let surface else { return }
+        let occluded = !isVisible || isWindowOccluded
+        ghostty_surface_set_occlusion(surface, occluded)
+    }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -206,6 +226,18 @@ final class GhosttyTerminalNSView: NSView {
             }
         }
 
+        occlusionObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] notification in
+            guard let w = notification.object as? NSWindow else { return }
+            MainActor.assumeIsolated {
+                self?.isWindowOccluded = !w.occlusionState.contains(.visible)
+            }
+        }
+
+        isWindowOccluded = !window.occlusionState.contains(.visible)
         updateMetalLayerSize(deferred: true)
     }
 

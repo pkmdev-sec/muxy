@@ -14,6 +14,10 @@ final class GhosttyService {
     private(set) var configVersion = 0
     @ObservationIgnored private let runtimeEvents: any GhosttyRuntimeEventHandling = GhosttyRuntimeEventAdapter()
     @ObservationIgnored private let muxyConfig: MuxyConfig
+    @ObservationIgnored private var cachedBackground: NSColor?
+    @ObservationIgnored private var cachedForeground: NSColor?
+    @ObservationIgnored private var cachedAccent: NSColor?
+    @ObservationIgnored private var cachedPalette: [Int: NSColor] = [:]
 
     private init(muxyConfig: MuxyConfig = .shared) {
         self.muxyConfig = muxyConfig
@@ -67,30 +71,42 @@ final class GhosttyService {
     }
 
     var backgroundColor: NSColor {
-        configColor("background") ?? NSColor(srgbRed: 0.098, green: 0.090, blue: 0.122, alpha: 1)
+        if let cached = cachedBackground { return cached }
+        let color = configColor("background") ?? NSColor(srgbRed: 0.098, green: 0.090, blue: 0.122, alpha: 1)
+        cachedBackground = color
+        return color
     }
 
     var foregroundColor: NSColor {
-        configColor("foreground") ?? .white
+        if let cached = cachedForeground { return cached }
+        let color = configColor("foreground") ?? .white
+        cachedForeground = color
+        return color
     }
 
     var accentColor: NSColor {
-        paletteColor(at: 4) ?? configColor("foreground") ?? .white
+        if let cached = cachedAccent { return cached }
+        let color = paletteColor(at: 4) ?? foregroundColor
+        cachedAccent = color
+        return color
     }
 
     func paletteColor(at index: Int) -> NSColor? {
         guard let config, index >= 0, index < 256 else { return nil }
+        if let cached = cachedPalette[index] { return cached }
         var palette = ghostty_config_palette_s()
         guard ghostty_config_get(config, &palette, "palette", 7) else { return nil }
         let c = withUnsafePointer(to: &palette.colors) {
             $0.withMemoryRebound(to: ghostty_config_color_s.self, capacity: 256) { $0[index] }
         }
-        return NSColor(
+        let color = NSColor(
             srgbRed: CGFloat(c.r) / 255,
             green: CGFloat(c.g) / 255,
             blue: CGFloat(c.b) / 255,
             alpha: 1
         )
+        cachedPalette[index] = color
+        return color
     }
 
     private func configColor(_ key: String) -> NSColor? {
@@ -115,6 +131,14 @@ final class GhosttyService {
         self.config = newConfig
         if let oldConfig { ghostty_config_free(oldConfig) }
         configVersion += 1
+        invalidateColorCaches()
+    }
+
+    private func invalidateColorCaches() {
+        cachedBackground = nil
+        cachedForeground = nil
+        cachedAccent = nil
+        cachedPalette.removeAll(keepingCapacity: true)
     }
 
     private func loadMuxyGhosttyConfig() -> ghostty_config_t? {
@@ -131,6 +155,16 @@ final class GhosttyService {
         guard let app else { return }
         ghostty_app_tick(app)
     }
+
+    nonisolated static func scheduleTick() {
+        coalescedTickScheduler.schedule {
+            MainActor.assumeIsolated {
+                GhosttyService.shared.tick()
+            }
+        }
+    }
+
+    nonisolated static let coalescedTickScheduler = CoalescedTickScheduler()
 
     private static let allowedResourceParents = [
         "/Applications/Ghostty.app/Contents/Resources/ghostty",
@@ -150,6 +184,27 @@ final class GhosttyService {
             guard FileManager.default.fileExists(atPath: path + "/shell-integration") else { continue }
             setenv("GHOSTTY_RESOURCES_DIR", path, 1)
             return
+        }
+    }
+}
+
+final class CoalescedTickScheduler: @unchecked Sendable {
+    private let lock = NSLock()
+    private var pending = false
+
+    func schedule(_ work: @escaping @Sendable () -> Void) {
+        lock.lock()
+        if pending {
+            lock.unlock()
+            return
+        }
+        pending = true
+        lock.unlock()
+        DispatchQueue.main.async { [weak self] in
+            self?.lock.lock()
+            self?.pending = false
+            self?.lock.unlock()
+            work()
         }
     }
 }

@@ -1,8 +1,9 @@
 import Foundation
 
-protocol WorktreePersisting {
+protocol WorktreePersisting: Sendable {
     func loadWorktrees(projectID: UUID) throws -> [Worktree]
     func saveWorktrees(_ worktrees: [Worktree], projectID: UUID) throws
+    func saveWorktreesAsync(_ worktrees: [Worktree], projectID: UUID)
     func removeWorktrees(projectID: UUID) throws
 }
 
@@ -24,6 +25,10 @@ final class FileWorktreePersistence: WorktreePersisting {
 
     func saveWorktrees(_ worktrees: [Worktree], projectID: UUID) throws {
         try store(for: projectID).save(worktrees)
+    }
+
+    func saveWorktreesAsync(_ worktrees: [Worktree], projectID: UUID) {
+        store(for: projectID).saveAsync(worktrees)
     }
 
     func removeWorktrees(projectID: UUID) throws {

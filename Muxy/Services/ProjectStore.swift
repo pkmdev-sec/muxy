@@ -57,11 +57,7 @@ final class ProjectStore {
     }
 
     func save() {
-        do {
-            try persistence.saveProjects(projects)
-        } catch {
-            logger.error("Failed to save projects: \(error)")
-        }
+        persistence.saveProjectsAsync(projects)
     }
 
     private func load() {

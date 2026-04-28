@@ -189,13 +189,25 @@ final class NotificationStore {
     }
 
     func saveToDisk() {
+        let url = Self.fileURL
         do {
             let data = try JSONEncoder().encode(notifications)
-            try data.write(to: Self.fileURL, options: .atomic)
+            Self.writerQueue.async {
+                do {
+                    try data.write(to: url, options: .atomic)
+                } catch {
+                    logger.error("Failed to write notifications: \(error.localizedDescription)")
+                }
+            }
         } catch {
-            logger.error("Failed to save notifications: \(error.localizedDescription)")
+            logger.error("Failed to encode notifications: \(error.localizedDescription)")
         }
     }
+
+    private static let writerQueue = DispatchQueue(
+        label: "app.muxy.notifications.writer",
+        qos: .utility
+    )
 
     private static func loadFromDisk() -> [MuxyNotification] {
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return [] }

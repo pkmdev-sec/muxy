@@ -273,11 +273,7 @@ final class WorktreeStore {
 
     private func save(projectID: UUID) {
         guard let list = worktrees[projectID] else { return }
-        do {
-            try persistence.saveWorktrees(list, projectID: projectID)
-        } catch {
-            logger.error("Failed to save worktrees for project \(projectID): \(error)")
-        }
+        persistence.saveWorktreesAsync(list, projectID: projectID)
     }
 
     private func defaultName(for record: GitWorktreeRecord) -> String {

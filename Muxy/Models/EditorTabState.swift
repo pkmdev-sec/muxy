@@ -42,7 +42,7 @@ final class EditorTabState: Identifiable {
     let id = UUID()
     let projectPath: String
     private(set) var filePath: String
-    var backingStoreVersion = 0
+    @ObservationIgnored var backingStoreVersion = 0
     var previewRefreshVersion = 0
     var isLoading = false
     var isIncrementalLoading = false
@@ -67,7 +67,7 @@ final class EditorTabState: Identifiable {
     var replaceText = ""
     var replaceVersion = 0
     var replaceAllVersion = 0
-    var currentSelection = ""
+    @ObservationIgnored var currentSelection = ""
     var awaitingLargeFileConfirmation = false
     var largeFileSize: Int64 = 0
     var backingStore: TextBackingStore?

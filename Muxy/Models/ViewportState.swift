@@ -12,7 +12,7 @@ final class ViewportState {
     private(set) var estimatedLineHeight: CGFloat = 16
     private(set) var documentVerticalPadding: CGFloat = 8
 
-    static let viewportBuffer = 500
+    static let viewportBuffer = 200
     static let scrollHysteresis = 200
 
     var viewportLineCount: Int { viewportEndLine - viewportStartLine }
