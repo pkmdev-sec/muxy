@@ -43,6 +43,8 @@ final class GhosttyTerminalNSView: NSView {
         self.command = command
         super.init(frame: .zero)
         wantsLayer = true
+        layer?.isOpaque = true
+        layer?.backgroundColor = CGColor(gray: 0, alpha: 1)
         layerContentsRedrawPolicy = .onSetNeedsDisplay
         setupTrackingArea()
         registerForDraggedTypes([.fileURL, .string])
@@ -274,14 +276,11 @@ final class GhosttyTerminalNSView: NSView {
     private func updateMetalLayerSize(deferred: Bool) {
         if deferred {
             delayedResizeWorkItem?.cancel()
-            DispatchQueue.main.async { [weak self] in
-                self?.updateMetalLayerSize(deferred: false)
-            }
             let workItem = DispatchWorkItem { [weak self] in
                 self?.updateMetalLayerSize(deferred: false)
             }
             delayedResizeWorkItem = workItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: workItem)
+            DispatchQueue.main.async(execute: workItem)
             return
         }
 

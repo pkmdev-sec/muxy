@@ -191,20 +191,35 @@ final class GhosttyService {
 final class CoalescedTickScheduler: @unchecked Sendable {
     private let lock = NSLock()
     private var pending = false
+    private var needsRerun = false
 
     func schedule(_ work: @escaping @Sendable () -> Void) {
         lock.lock()
         if pending {
+            needsRerun = true
             lock.unlock()
             return
         }
         pending = true
+        needsRerun = false
         lock.unlock()
         DispatchQueue.main.async { [weak self] in
-            self?.lock.lock()
-            self?.pending = false
-            self?.lock.unlock()
-            work()
+            self?.drain(work)
+        }
+    }
+
+    private func drain(_ work: @escaping @Sendable () -> Void) {
+        work()
+        lock.lock()
+        let shouldRerun = needsRerun
+        needsRerun = false
+        if !shouldRerun {
+            pending = false
+        }
+        lock.unlock()
+        guard shouldRerun else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.drain(work)
         }
     }
 }
