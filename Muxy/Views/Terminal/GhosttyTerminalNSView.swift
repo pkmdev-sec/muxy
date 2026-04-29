@@ -319,7 +319,7 @@ final class GhosttyTerminalNSView: NSView {
     private static func safeCharactersIgnoringModifiers(_ event: NSEvent) -> String {
         switch event.type {
         case .keyDown, .keyUp:
-            return Self.safeCharactersIgnoringModifiers(event)
+            return event.charactersIgnoringModifiers ?? ""
         default:
             return ""
         }
