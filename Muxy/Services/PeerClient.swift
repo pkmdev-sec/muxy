@@ -239,7 +239,17 @@ final class PeerClient {
         terminalSubscribers.removeValue(forKey: paneID)
     }
 
-    func takeOverPane(paneID: UUID, cols: UInt32 = 120, rows: UInt32 = 40) async {
+    func sendInput(paneID: UUID, bytes: Data) async {
+        let params = TerminalInputParams(paneID: paneID, bytes: bytes)
+        _ = try? await send(method: .terminalInput, params: .terminalInput(params))
+    }
+
+    func resize(paneID: UUID, cols: UInt32, rows: UInt32) async {
+        let params = TerminalResizeParams(paneID: paneID, cols: cols, rows: rows)
+        _ = try? await send(method: .terminalResize, params: .terminalResize(params))
+    }
+
+        func takeOverPane(paneID: UUID, cols: UInt32 = 120, rows: UInt32 = 40) async {
         let params = TakeOverPaneParams(paneID: paneID, cols: cols, rows: rows)
         _ = try? await send(method: .takeOverPane, params: .takeOverPane(params))
     }

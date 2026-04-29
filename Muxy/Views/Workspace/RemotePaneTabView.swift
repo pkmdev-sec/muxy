@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct RemotePaneTabView: View {
@@ -6,13 +7,20 @@ struct RemotePaneTabView: View {
     let onFocus: () -> Void
 
     @State private var autoScroll = true
+    @State private var interactive = false
     private let client = PeerClient.shared
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider().overlay(MuxyTheme.border)
-            content
+            ZStack {
+                content
+                if interactive, state.isAttached {
+                    RemoteKeystrokeCapture(paneID: state.remotePaneID)
+                        .allowsHitTesting(true)
+                }
+            }
         }
         .background(MuxyTheme.bg)
         .contentShape(Rectangle())
@@ -45,6 +53,11 @@ struct RemotePaneTabView: View {
                 .padding(.vertical, 2)
                 .background(statusColor.opacity(0.15))
                 .clipShape(Capsule())
+            Toggle("Drive", isOn: $interactive)
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .controlSize(.mini)
+                .help("Send keystrokes to the peer pane")
             Toggle("Auto-scroll", isOn: $autoScroll)
                 .toggleStyle(.switch)
                 .labelsHidden()
@@ -125,6 +138,52 @@ struct RemotePaneTabView: View {
         state.isAttached = false
         Task {
             await client.releasePane(paneID: state.remotePaneID)
+        }
+    }
+}
+
+private struct RemoteKeystrokeCapture: NSViewRepresentable {
+    let paneID: UUID
+
+    func makeNSView(context: Context) -> RemoteKeystrokeNSView {
+        RemoteKeystrokeNSView(paneID: paneID)
+    }
+
+    func updateNSView(_ nsView: RemoteKeystrokeNSView, context: Context) {
+        nsView.paneID = paneID
+    }
+}
+
+private final class RemoteKeystrokeNSView: NSView {
+    var paneID: UUID
+
+    init(paneID: UUID) {
+        self.paneID = paneID
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) not supported") }
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        window?.makeFirstResponder(self)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        window?.makeFirstResponder(self)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        guard let chars = event.characters, !chars.isEmpty else { return }
+        let data = Data(chars.utf8)
+        let targetPaneID = paneID
+        Task { @MainActor in
+            await PeerClient.shared.sendInput(paneID: targetPaneID, bytes: data)
         }
     }
 }
