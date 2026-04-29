@@ -4,6 +4,25 @@ struct DiffLineMetadata {
     let kind: DiffDisplayRow.Kind
     let oldLineNumber: Int?
     let newLineNumber: Int?
+    let hunkIndex: Int?
+    let bodyLineIndex: Int?
+    let source: DiffDisplayRow.Source?
+
+    init(
+        kind: DiffDisplayRow.Kind,
+        oldLineNumber: Int?,
+        newLineNumber: Int?,
+        hunkIndex: Int? = nil,
+        bodyLineIndex: Int? = nil,
+        source: DiffDisplayRow.Source? = nil
+    ) {
+        self.kind = kind
+        self.oldLineNumber = oldLineNumber
+        self.newLineNumber = newLineNumber
+        self.hunkIndex = hunkIndex
+        self.bodyLineIndex = bodyLineIndex
+        self.source = source
+    }
 }
 
 enum DiffGutterMode {
@@ -231,6 +250,8 @@ final class DiffGutterNSView: NSView {
     var cachedNumberHoverColor: NSColor = .labelColor
     var cachedAddColor: NSColor = .systemGreen
     var cachedRemoveColor: NSColor = .systemRed
+    var onStageLine: ((GitPatchBuilder.LineSelection) -> Void)?
+    var onUnstageLine: ((GitPatchBuilder.LineSelection) -> Void)?
     private var trackingArea: NSTrackingArea?
     private var hoveredCell: HoveredCell?
     private let numberFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
@@ -302,6 +323,50 @@ final class DiffGutterNSView: NSView {
             needsDisplay = true
         }
         NSCursor.arrow.set()
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let point = convert(event.locationInWindow, from: nil)
+        let lineIndex = Int(point.y / lineHeight)
+        guard lineIndex >= 0, lineIndex < lineMetadata.count else { return nil }
+        let meta = lineMetadata[lineIndex]
+        guard let hunkIndex = meta.hunkIndex,
+              let bodyLineIndex = meta.bodyLineIndex,
+              let source = meta.source,
+              meta.kind == .addition || meta.kind == .deletion
+        else { return nil }
+
+        let selection = GitPatchBuilder.LineSelection(hunkIndex: hunkIndex, bodyLineIndex: bodyLineIndex)
+        let menu = NSMenu()
+        switch source {
+        case .unstaged:
+            if onStageLine != nil {
+                let item = NSMenuItem(title: "Stage Line", action: #selector(stageSelectedLine(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = selection
+                menu.addItem(item)
+            }
+        case .staged:
+            if onUnstageLine != nil {
+                let item = NSMenuItem(title: "Unstage Line", action: #selector(unstageSelectedLine(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = selection
+                menu.addItem(item)
+            }
+        case .untracked:
+            break
+        }
+        return menu.items.isEmpty ? nil : menu
+    }
+
+    @objc private func stageSelectedLine(_ sender: NSMenuItem) {
+        guard let selection = sender.representedObject as? GitPatchBuilder.LineSelection else { return }
+        onStageLine?(selection)
+    }
+
+    @objc private func unstageSelectedLine(_ sender: NSMenuItem) {
+        guard let selection = sender.representedObject as? GitPatchBuilder.LineSelection else { return }
+        onUnstageLine?(selection)
     }
 
     override func mouseDown(with event: NSEvent) {

@@ -6,6 +6,8 @@ struct GitRepositoryService {
         let truncated: Bool
         let additions: Int
         let deletions: Int
+        let rawStagedPatch: String
+        let rawUnstagedPatch: String
     }
 
     enum GitError: LocalizedError {
@@ -648,31 +650,32 @@ struct GitRepositoryService {
         let unstagedOut = unstagedResult?.stdout ?? ""
         let stagedTruncated = stagedResult?.truncated ?? false
         let unstagedTruncated = unstagedResult?.truncated ?? false
+        let combinedTruncated = stagedTruncated || unstagedTruncated
 
-        let combinedPatch: String
-        let combinedTruncated: Bool
-        if !stagedOut.isEmpty, !unstagedOut.isEmpty {
-            combinedPatch = stagedOut + "\n" + unstagedOut
-            combinedTruncated = stagedTruncated || unstagedTruncated
-        } else if !stagedOut.isEmpty {
-            combinedPatch = stagedOut
-            combinedTruncated = stagedTruncated
-        } else {
-            combinedPatch = unstagedOut
-            combinedTruncated = unstagedTruncated
-        }
-
-        return await Self.parsePatchOffMain(combinedPatch, truncated: combinedTruncated)
+        return await Self.parsePatchOffMain(
+            stagedPatch: stagedOut,
+            unstagedPatch: unstagedOut,
+            truncated: combinedTruncated
+        )
     }
 
-    private static func parsePatchOffMain(_ patch: String, truncated: Bool) async -> PatchAndCompareResult {
+    private static func parsePatchOffMain(
+        stagedPatch: String,
+        unstagedPatch: String,
+        truncated: Bool
+    ) async -> PatchAndCompareResult {
         await GitProcessRunner.offMain {
-            let parsed = GitDiffParser.parseRows(patch)
+            let stagedParsed = GitDiffParser.parseRows(stagedPatch, source: .staged)
+            let unstagedParsed = GitDiffParser.parseRows(unstagedPatch, source: .unstaged)
+            let collapsedStaged = GitDiffParser.collapseContextRows(stagedParsed.rows)
+            let collapsedUnstaged = GitDiffParser.collapseContextRows(unstagedParsed.rows)
             return PatchAndCompareResult(
-                rows: GitDiffParser.collapseContextRows(parsed.rows),
+                rows: collapsedStaged + collapsedUnstaged,
                 truncated: truncated,
-                additions: parsed.additions,
-                deletions: parsed.deletions
+                additions: stagedParsed.additions + unstagedParsed.additions,
+                deletions: stagedParsed.deletions + unstagedParsed.deletions,
+                rawStagedPatch: stagedPatch,
+                rawUnstagedPatch: unstagedPatch
             )
         }
     }
@@ -713,20 +716,13 @@ struct GitRepositoryService {
             throw GitError.commandFailed(unstagedResult.stderr.isEmpty ? "Failed to load diff for \(filePath)." : unstagedResult.stderr)
         }
 
-        let combinedPatch: String
-        let combinedTruncated: Bool
-        if !stagedResult.stdout.isEmpty, !unstagedResult.stdout.isEmpty {
-            combinedPatch = stagedResult.stdout + "\n" + unstagedResult.stdout
-            combinedTruncated = stagedResult.truncated || unstagedResult.truncated
-        } else if !stagedResult.stdout.isEmpty {
-            combinedPatch = stagedResult.stdout
-            combinedTruncated = stagedResult.truncated
-        } else {
-            combinedPatch = unstagedResult.stdout
-            combinedTruncated = unstagedResult.truncated
-        }
+        let combinedTruncated = stagedResult.truncated || unstagedResult.truncated
 
-        return await Self.parsePatchOffMain(combinedPatch, truncated: combinedTruncated)
+        return await Self.parsePatchOffMain(
+            stagedPatch: stagedResult.stdout,
+            unstagedPatch: unstagedResult.stdout,
+            truncated: combinedTruncated
+        )
     }
 
     private func untrackedOrNewFileDiff(repoPath: String, filePath: String, lineLimit: Int?) throws -> PatchAndCompareResult {
@@ -739,7 +735,14 @@ struct GitRepositoryService {
         guard let data = FileManager.default.contents(atPath: fullPath),
               let content = String(data: data, encoding: .utf8)
         else {
-            return PatchAndCompareResult(rows: [], truncated: false, additions: 0, deletions: 0)
+            return PatchAndCompareResult(
+                rows: [],
+                truncated: false,
+                additions: 0,
+                deletions: 0,
+                rawStagedPatch: "",
+                rawUnstagedPatch: ""
+            )
         }
 
         let lines = content.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
@@ -772,7 +775,9 @@ struct GitRepositoryService {
             rows: GitDiffParser.collapseContextRows(rows),
             truncated: truncated,
             additions: effectiveLines,
-            deletions: 0
+            deletions: 0,
+            rawStagedPatch: "",
+            rawUnstagedPatch: ""
         )
     }
 
@@ -808,6 +813,68 @@ struct GitRepositoryService {
         guard result.status == 0 else {
             throw GitError.commandFailed(result.stderr.isEmpty ? "Failed to unstage all files." : result.stderr)
         }
+    }
+    func applyPatch(repoPath: String, patch: String, cached: Bool, reverse: Bool) async throws {
+        guard let data = patch.data(using: .utf8) else {
+            throw GitError.commandFailed("Patch is not valid UTF-8.")
+        }
+        var arguments: [String] = ["apply", "--whitespace=nowarn", "--recount"]
+        if cached { arguments.append("--cached") }
+        if reverse { arguments.append("--reverse") }
+        arguments.append("-")
+        let result = try await GitProcessRunner.runGit(repoPath: repoPath, arguments: arguments, stdin: data)
+        guard result.status == 0 else {
+            let message = result.stderr.isEmpty ? "Failed to apply patch." : result.stderr
+            throw GitError.commandFailed(message)
+        }
+    }
+
+    struct ConflictResolutionResult {
+        let resolvedAllRegions: Bool
+        let remainingConflictCount: Int
+    }
+
+    func readConflictRegions(repoPath: String, filePath: String) async throws -> [GitConflictRegion] {
+        try validatePath(repoPath: repoPath, relativePath: filePath)
+        let fullPath = (repoPath as NSString).appendingPathComponent(filePath)
+        let contents = try await GitProcessRunner.offMainThrowing {
+            try String(contentsOfFile: fullPath, encoding: .utf8)
+        }
+        return GitConflictParser.parse(contents)
+    }
+
+    func resolveConflictRegion(
+        repoPath: String,
+        filePath: String,
+        regionIndex: Int,
+        choice: GitConflictResolutionChoice
+    ) async throws -> ConflictResolutionResult {
+        try validatePath(repoPath: repoPath, relativePath: filePath)
+        let fullPath = (repoPath as NSString).appendingPathComponent(filePath)
+
+        let (updated, remainingCount) = try await GitProcessRunner.offMainThrowing {
+            let contents = try String(contentsOfFile: fullPath, encoding: .utf8)
+            let regions = GitConflictParser.parse(contents)
+            guard regions.indices.contains(regionIndex) else {
+                throw GitError.commandFailed("Conflict region \(regionIndex) not found.")
+            }
+            guard let rewritten = GitConflictParser.applyResolution(choice, to: contents, region: regions[regionIndex]) else {
+                throw GitError.commandFailed("Failed to apply conflict resolution.")
+            }
+            try rewritten.write(toFile: fullPath, atomically: true, encoding: .utf8)
+            let remaining = GitConflictParser.parse(rewritten).count
+            return (rewritten, remaining)
+        }
+        _ = updated
+
+        if remainingCount == 0 {
+            try await stageFiles(repoPath: repoPath, paths: [filePath])
+        }
+
+        return ConflictResolutionResult(
+            resolvedAllRegions: remainingCount == 0,
+            remainingConflictCount: remainingCount
+        )
     }
 
     func discardFiles(repoPath: String, paths: [String], untrackedPaths: [String]) async throws {
@@ -991,6 +1058,62 @@ struct GitRepositoryService {
         guard result.status == 0 else {
             throw GitError.commandFailed(result.stderr.isEmpty ? "Failed to create tag." : result.stderr)
         }
+    }
+
+    func listStashes(repoPath: String) async throws -> [GitStashEntry] {
+        let result = try await GitProcessRunner.runGit(
+            repoPath: repoPath,
+            arguments: ["stash", "list", "--pretty=format:%gd%x00%H%x00%gs"]
+        )
+        guard result.status == 0 else {
+            throw GitError.commandFailed(result.stderr.isEmpty ? "Failed to list stashes." : result.stderr)
+        }
+        return GitStashParser.parseList(result.stdout)
+    }
+
+    func pushStash(repoPath: String, message: String?, includeUntracked: Bool) async throws {
+        var arguments: [String] = ["stash", "push"]
+        if includeUntracked { arguments.append("--include-untracked") }
+        if let message, !message.trimmingCharacters(in: .whitespaces).isEmpty {
+            arguments.append("-m")
+            arguments.append(message)
+        }
+        let result = try await GitProcessRunner.runGit(repoPath: repoPath, arguments: arguments)
+        guard result.status == 0 else {
+            throw GitError.commandFailed(result.stderr.isEmpty ? "Failed to push stash." : result.stderr)
+        }
+    }
+
+    func applyStash(repoPath: String, slot: String) async throws {
+        let result = try await GitProcessRunner.runGit(repoPath: repoPath, arguments: ["stash", "apply", slot])
+        guard result.status == 0 else {
+            throw GitError.commandFailed(result.stderr.isEmpty ? "Failed to apply stash." : result.stderr)
+        }
+    }
+
+    func popStash(repoPath: String, slot: String) async throws {
+        let result = try await GitProcessRunner.runGit(repoPath: repoPath, arguments: ["stash", "pop", slot])
+        guard result.status == 0 else {
+            throw GitError.commandFailed(result.stderr.isEmpty ? "Failed to pop stash." : result.stderr)
+        }
+    }
+
+    func dropStash(repoPath: String, slot: String) async throws {
+        let result = try await GitProcessRunner.runGit(repoPath: repoPath, arguments: ["stash", "drop", slot])
+        guard result.status == 0 else {
+            throw GitError.commandFailed(result.stderr.isEmpty ? "Failed to drop stash." : result.stderr)
+        }
+    }
+
+    func showStash(repoPath: String, slot: String) async throws -> String {
+        let result = try await GitProcessRunner.runGit(
+            repoPath: repoPath,
+            arguments: ["stash", "show", "-p", "--no-color", slot]
+        )
+        guard result.status == 0 else {
+            throw GitError.commandFailed(result.stderr.isEmpty ? "Failed to show stash." : result.stderr)
+        }
+        return result.stdout
     }
 
     func checkoutDetached(repoPath: String, hash: String) async throws {

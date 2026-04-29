@@ -4,6 +4,10 @@ struct UnifiedDiffView: View {
     let rows: [DiffDisplayRow]
     let filePath: String
     var suppressLeadingTopBorder: Bool = false
+    var onStageHunk: ((DiffHunkReference) -> Void)? = nil
+    var onUnstageHunk: ((DiffHunkReference) -> Void)? = nil
+    var onStageLine: ((GitPatchBuilder.LineSelection) -> Void)? = nil
+    var onUnstageLine: ((GitPatchBuilder.LineSelection) -> Void)? = nil
 
     private var chunks: [DiffChunk] {
         buildDiffChunks(from: rows)
@@ -17,10 +21,13 @@ struct UnifiedDiffView: View {
         LazyVStack(spacing: 0) {
             ForEach(Array(chunks.enumerated()), id: \.offset) { index, chunk in
                 switch chunk {
-                case let .divider(text):
+                case let .divider(text, hunk):
                     DiffSectionDivider(
                         text: text,
-                        showsTopBorder: !(index == 0 && suppressLeadingTopBorder)
+                        showsTopBorder: !(index == 0 && suppressLeadingTopBorder),
+                        hunk: hunk,
+                        onStageHunk: onStageHunk,
+                        onUnstageHunk: onUnstageHunk
                     )
                 case let .codeBlock(blockRows):
                     unifiedCodeBlock(blockRows)
@@ -40,8 +47,15 @@ struct UnifiedDiffView: View {
         let height = CGFloat(blockRows.count) * diffLineHeight
         let metadata = buildDiffMetadata(from: blockRows)
         return HStack(alignment: .top, spacing: 0) {
-            DiffGutterBridge(metadata: metadata, filePath: filePath, mode: .unified, columnWidth: numberColumnWidth)
-                .frame(width: gutterWidth, height: height)
+            DiffGutterBridge(
+                metadata: metadata,
+                filePath: filePath,
+                mode: .unified,
+                columnWidth: numberColumnWidth,
+                onStageLine: onStageLine,
+                onUnstageLine: onUnstageLine
+            )
+            .frame(width: gutterWidth, height: height)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 DiffContentBridge(

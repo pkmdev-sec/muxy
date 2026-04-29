@@ -12,26 +12,28 @@ struct WorktreeConfig: Codable {
     }
 
     let setup: [SetupCommand]
+    let agents: [AgentDefinition]
 
     private enum CodingKeys: String, CodingKey {
         case setup
+        case agents
     }
 
-    init(setup: [SetupCommand]) {
+    init(setup: [SetupCommand], agents: [AgentDefinition] = []) {
         self.setup = setup
+        self.agents = agents
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         if let objectEntries = try? container.decode([SetupCommand].self, forKey: .setup) {
             setup = objectEntries
-            return
-        }
-        if let stringEntries = try? container.decode([String].self, forKey: .setup) {
+        } else if let stringEntries = try? container.decode([String].self, forKey: .setup) {
             setup = stringEntries.map { SetupCommand(command: $0) }
-            return
+        } else {
+            setup = []
         }
-        setup = []
+        agents = (try? container.decode([AgentDefinition].self, forKey: .agents)) ?? []
     }
 
     static func load(fromProjectPath projectPath: String) -> WorktreeConfig? {

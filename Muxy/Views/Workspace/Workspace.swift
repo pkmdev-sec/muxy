@@ -22,13 +22,27 @@ struct TerminalArea: View {
         return false
     }
 
+    private var zoomedNode: SplitNode? {
+        guard let root,
+              let zoomedID = appState.zoomedAreaID[worktreeKey],
+              let area = root.findArea(id: zoomedID)
+        else { return nil }
+        return .tabArea(area)
+    }
+
     var body: some View {
         if let root {
+            let renderedRoot = zoomedNode ?? root
+            let renderedIsTabArea: Bool = {
+                if case .tabArea = renderedRoot { return true }
+                return false
+            }()
+            let isZoomed = zoomedNode != nil
             PaneNode(
-                node: root,
+                node: renderedRoot,
                 focusedAreaID: focusedAreaID,
                 isActiveProject: isActiveProject,
-                showTabStrip: !rootIsTabArea,
+                showTabStrip: !renderedIsTabArea,
                 showVCSButton: false,
                 projectID: project.id,
                 onFocusArea: { areaID in
@@ -73,6 +87,40 @@ struct TerminalArea: View {
                 guard isActiveProject, dragCoordinator.activeDrag != nil else { return }
                 dragCoordinator.setAreaFrames(frames, forProject: project.id)
             }
+            .overlay(alignment: .topTrailing) {
+                if isZoomed {
+                    ZoomedPaneBadge {
+                        appState.toggleZoomedArea(projectID: project.id)
+                    }
+                    .padding(.top, 10)
+                    .padding(.trailing, 12)
+                }
+            }
         }
+    }
+}
+
+private struct ZoomedPaneBadge: View {
+    let onExit: () -> Void
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: onExit) {
+            HStack(spacing: 5) {
+                Image(systemName: "arrow.down.right.and.arrow.up.left")
+                    .font(.system(size: 10, weight: .semibold))
+                Text("Zoomed")
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .foregroundStyle(hovered ? MuxyTheme.fg : MuxyTheme.fgMuted)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(MuxyTheme.bg, in: Capsule())
+            .overlay(Capsule().strokeBorder(MuxyTheme.border, lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 }
+        .accessibilityLabel("Exit zoomed pane")
+        .help("Exit zoom (⌘⇧Z)")
     }
 }

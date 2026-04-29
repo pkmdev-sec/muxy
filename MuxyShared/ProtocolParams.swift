@@ -345,9 +345,11 @@ public enum TerminalCellFlag {
 public struct TerminalOutputEventDTO: Codable, Sendable {
     public let paneID: UUID
     public let bytes: Data
-    public init(paneID: UUID, bytes: Data) {
+    public let seq: UInt64?
+    public init(paneID: UUID, bytes: Data, seq: UInt64? = nil) {
         self.paneID = paneID
         self.bytes = bytes
+        self.seq = seq
     }
 }
 

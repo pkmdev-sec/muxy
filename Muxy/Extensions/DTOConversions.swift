@@ -87,6 +87,9 @@ extension TerminalTab.Kind {
         case .vcs: .vcs
         case .editor: .editor
         case .diffViewer: .diffViewer
+        case .testRunner: .terminal
+        case .agentCanvas: .terminal
+        case .gitLog: .terminal
         }
     }
 }

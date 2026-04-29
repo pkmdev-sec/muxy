@@ -145,6 +145,12 @@ private struct TabContentView: View {
             EditorPane(state: editorState, focused: focused, onFocus: onFocus)
         case let .diffViewer(diffState):
             DiffViewerPane(state: diffState, focused: focused, onFocus: onFocus)
+        case let .testRunner(testState):
+            TestRunnerTabView(state: testState, focused: focused, onFocus: onFocus)
+        case let .agentCanvas(state):
+            AgentCanvasTabView(state: state, focused: focused, onFocus: onFocus)
+        case let .gitLog(state):
+            GitLogTabView(state: state, focused: focused, onFocus: onFocus)
         }
     }
 }

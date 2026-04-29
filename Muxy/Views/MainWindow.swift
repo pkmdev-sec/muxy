@@ -56,6 +56,14 @@ struct MainWindow: View {
     @State private var fileTreeStates: [WorktreeKey: FileTreeState] = [:]
     @State private var showQuickOpen = false
     @State private var showWorktreeSwitcher = false
+    @State private var showCommandPalette = false
+    @State private var paletteThemes: [ThemePreview] = []
+    @State private var showProjectSearch = false
+    @State private var showShortcutCheatSheet = false
+    @State private var showAgentInbox = false
+    @State private var showScrollbackHistory = false
+    @State private var scrollbackCheckpointPrompt: ScrollbackCheckpointPromptState?
+    @State private var workflowSavePrompt: WorkflowSavePromptState?
     @State private var isFullScreen = false
     @State private var sidebarExpanded = UserDefaults.standard.bool(forKey: "muxy.sidebarExpanded")
     @AppStorage("muxy.notifications.toastPosition") private var toastPositionRaw = ToastPosition.topCenter.rawValue
@@ -166,7 +174,13 @@ struct MainWindow: View {
                 }
             }
         }
-        .environment(\.overlayActive, showQuickOpen || showWorktreeSwitcher)
+        .environment(
+            \.overlayActive,
+            showQuickOpen || showWorktreeSwitcher || showCommandPalette
+                || showProjectSearch || showShortcutCheatSheet || showAgentInbox
+                || showScrollbackHistory || scrollbackCheckpointPrompt != nil
+                || workflowSavePrompt != nil
+        )
         .overlay(alignment: toastAlignment) {
             if let toast = ToastState.shared.message {
                 HStack(spacing: 6) {
@@ -220,6 +234,57 @@ struct MainWindow: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
+        .modifier(MainWindowExtraOverlays(
+            showCommandPalette: $showCommandPalette,
+            showProjectSearch: $showProjectSearch,
+            showShortcutCheatSheet: $showShortcutCheatSheet,
+            showAgentInbox: $showAgentInbox,
+            showScrollbackHistory: $showScrollbackHistory,
+            scrollbackCheckpointPrompt: $scrollbackCheckpointPrompt,
+            workflowSavePrompt: $workflowSavePrompt,
+            activeProject: activeProject,
+            activeWorktreePath: activeProject.map { activeWorktreePath(for: $0) } ?? "",
+            projectStore: projectStore,
+            worktreeStore: worktreeStore,
+            appState: appState,
+            onAgentInboxSelect: { session in
+                AIAgentSessionStore.shared.navigate(to: session, appState: appState)
+            },
+            onScrollbackSelect: { checkpoint in
+                handleScrollbackCheckpointSelect(checkpoint)
+            },
+            onScrollbackExportBetween: { a, b in
+                handleScrollbackExport(a, b)
+            },
+            onScrollbackPromptSubmit: { state, label in
+                _ = TerminalScrollbackStore.shared.addCheckpoint(
+                    paneID: state.paneID,
+                    label: label,
+                    projectID: state.projectID
+                )
+                ToastState.shared.show("Checkpointed")
+            },
+            resolveFocusedPane: { resolveFocusedPaneForCheckpoint() },
+            buildPalette: buildCommandPalette,
+            openFile: { path, projectID, needle in
+                appState.openFile(path, projectID: projectID, initialSearchNeedle: needle)
+            },
+            onPaletteWillOpen: {
+                Task { paletteThemes = await ThemeService.shared.loadThemes() }
+            },
+            onSaveWorkflow: { name, draft in
+                let macro = WorkflowMacro(
+                    id: draft.id,
+                    name: name,
+                    symbol: draft.symbol,
+                    steps: draft.steps,
+                    createdAt: draft.createdAt,
+                    updatedAt: Date()
+                )
+                WorkflowMacroStore.shared.save(macro)
+                ToastState.shared.show("Saved workflow \"\(name)\"")
+            }
+        ))
         .animation(.easeInOut(duration: 0.15), value: showQuickOpen)
         .animation(.easeInOut(duration: 0.15), value: showWorktreeSwitcher)
         .animation(.easeInOut(duration: 0.2), value: ToastState.shared.message != nil)
@@ -511,9 +576,130 @@ struct MainWindow: View {
             .sorted { $0.worktreeID.uuidString < $1.worktreeID.uuidString }
     }
 
+    private func buildCommandPalette() -> CommandPalette {
+        let sources: [PaletteCommandSource] = [
+            ShortcutCommandSource(
+                appState: appState,
+                projectStore: projectStore,
+                worktreeStore: worktreeStore,
+                ghostty: ghostty,
+                keyBindings: .shared,
+                openVCS: { project in openVCS(for: project) }
+            ),
+            NavigationCommandSource(
+                appState: appState,
+                projectStore: projectStore,
+                worktreeStore: worktreeStore
+            ),
+            ThemeCommandSource(themes: paletteThemes, themeService: .shared),
+            AICommandSource(usage: .shared),
+            FileContextCommandSource(
+                appState: appState,
+                projectStore: projectStore,
+                worktreeStore: worktreeStore
+            ),
+            VCSCommandSource(resolveActiveVCS: {
+                let vcs = activeVCSState
+                vcs?.loadStashes()
+                return vcs
+            }),
+            AgentWorkbenchCommandSource(
+                appState: appState,
+                projectStore: projectStore,
+                worktreeStore: worktreeStore
+            ),
+            AgentInboxCommandSource(
+                appState: appState,
+                projectStore: projectStore,
+                agentStore: .shared,
+                notificationCenter: .default
+            ),
+            ScrollbackCommandSource(
+                appState: appState,
+                projectStore: projectStore,
+                worktreeStore: worktreeStore,
+                store: .shared,
+                notificationCenter: .default
+            ),
+            WorkspaceTemplateCommandSource(
+                appState: appState,
+                projectStore: projectStore,
+                worktreeStore: worktreeStore,
+                templateStore: .shared
+            ),
+            TestRunnerCommandSource(
+                appState: appState,
+                projectStore: projectStore
+            ),
+            AgentCanvasCommandSource(
+                appState: appState
+            ),
+            GitLogCommandSource(
+                appState: appState
+            ),
+            WorkflowMacroCommandSource(
+                appState: appState,
+                macroStore: .shared,
+                recorder: .shared,
+                notificationCenter: .default,
+                paletteProvider: { [self] in buildCommandPalette() }
+            ),
+            SettingsCommandSource(),
+        ]
+        return CommandPalette(sources: sources)
+    }
+
     private func handleShortcutAction(_ action: ShortcutAction) -> Bool {
         shortcutDispatcher.perform(action, activeProject: activeProject) { project in
             openVCS(for: project)
+        }
+    }
+
+    private func resolveFocusedPaneForCheckpoint() -> ScrollbackCheckpointPromptState? {
+        guard let projectID = appState.activeProjectID,
+              let area = appState.focusedArea(for: projectID),
+              let tab = area.activeTab,
+              let paneID = tab.content.pane?.id
+        else { return nil }
+        return ScrollbackCheckpointPromptState(paneID: paneID, projectID: projectID)
+    }
+
+    private func handleScrollbackCheckpointSelect(_ checkpoint: TerminalScrollbackCheckpoint) {
+        showScrollbackHistory = false
+        guard let ctx = NotificationNavigator.resolveContext(
+            for: checkpoint.paneID,
+            appState: appState,
+            worktreeStore: worktreeStore
+        )
+        else {
+            ToastState.shared.show("Pane is no longer active")
+            return
+        }
+        appState.dispatch(.selectProject(
+            projectID: ctx.projectID,
+            worktreeID: ctx.worktreeID,
+            worktreePath: ctx.worktreePath
+        ))
+        appState.dispatch(.focusArea(projectID: ctx.projectID, areaID: ctx.areaID))
+        appState.dispatch(.selectTab(projectID: ctx.projectID, areaID: ctx.areaID, tabID: ctx.tabID))
+        ToastState.shared.show("Jumped to \"\(checkpoint.label)\"")
+    }
+
+    private func handleScrollbackExport(
+        _ a: TerminalScrollbackCheckpoint,
+        _ b: TerminalScrollbackCheckpoint
+    ) {
+        let (earlier, later) = a.seq < b.seq ? (a, b) : (b, a)
+        guard let data = TerminalScrollbackStore.shared.bytesBetween(earlier, later) else {
+            ToastState.shared.show("Not enough buffered data — try smaller range")
+            return
+        }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(earlier.label) \u{2192} \(later.label).txt"
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            try? data.write(to: url)
+            ToastState.shared.show("Exported \(data.count) bytes")
         }
     }
 
@@ -924,5 +1110,254 @@ private final class ShortcutInterceptingView: NSView {
         guard let mouseMonitor else { return }
         NSEvent.removeMonitor(mouseMonitor)
         self.mouseMonitor = nil
+    }
+}
+
+private struct MainWindowExtraOverlays: ViewModifier {
+    @Binding var showCommandPalette: Bool
+    @Binding var showProjectSearch: Bool
+    @Binding var showShortcutCheatSheet: Bool
+    @Binding var showAgentInbox: Bool
+    @Binding var showScrollbackHistory: Bool
+    @Binding var scrollbackCheckpointPrompt: ScrollbackCheckpointPromptState?
+    @Binding var workflowSavePrompt: WorkflowSavePromptState?
+    let activeProject: Project?
+    let activeWorktreePath: String
+    let projectStore: ProjectStore
+    let worktreeStore: WorktreeStore
+    let appState: AppState
+    let onAgentInboxSelect: (AIAgentSession) -> Void
+    let onScrollbackSelect: (TerminalScrollbackCheckpoint) -> Void
+    let onScrollbackExportBetween: (TerminalScrollbackCheckpoint, TerminalScrollbackCheckpoint) -> Void
+    let onScrollbackPromptSubmit: (ScrollbackCheckpointPromptState, String) -> Void
+    let resolveFocusedPane: () -> ScrollbackCheckpointPromptState?
+    let buildPalette: () -> CommandPalette
+    let openFile: (String, UUID, String?) -> Void
+    let onPaletteWillOpen: () -> Void
+    let onSaveWorkflow: (String, WorkflowMacro) -> Void
+
+    func body(content: Content) -> some View {
+        applyScrollbackHooks(
+            applyAnimations(
+                applyNotifications(
+                    applyOverlays(content)
+                )
+            )
+        )
+    }
+
+    private func applyOverlays(_ view: some View) -> some View {
+        view
+            .overlay { commandPaletteOverlay }
+            .overlay { projectSearchOverlay }
+            .overlay { cheatSheetOverlay }
+            .overlay { agentInboxOverlay }
+            .overlay { scrollbackHistoryOverlay }
+            .overlay { scrollbackPromptOverlay }
+            .overlay { workflowSavePromptOverlay }
+            .overlay(alignment: .top) { workflowRecordingBannerOverlay }
+    }
+
+    private func applyAnimations(_ view: some View) -> some View {
+        view
+            .animation(.easeInOut(duration: 0.15), value: showCommandPalette)
+            .animation(.easeInOut(duration: 0.15), value: showProjectSearch)
+            .animation(.easeInOut(duration: 0.15), value: showShortcutCheatSheet)
+            .animation(.easeInOut(duration: 0.15), value: showAgentInbox)
+            .animation(.easeInOut(duration: 0.15), value: showScrollbackHistory)
+            .animation(.easeInOut(duration: 0.15), value: scrollbackCheckpointPrompt != nil)
+            .animation(.easeInOut(duration: 0.15), value: workflowSavePrompt != nil)
+            .animation(.easeInOut(duration: 0.2), value: WorkflowRecorder.shared.isRecording)
+    }
+
+    private func applyNotifications(_ view: some View) -> some View {
+        view
+            .onReceive(NotificationCenter.default.publisher(for: .toggleCommandPalette)) { _ in
+                showCommandPalette.toggle()
+                if showCommandPalette {
+                    onPaletteWillOpen()
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .projectSearch)) { _ in
+                showProjectSearch.toggle()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .showShortcutCheatSheet)) { _ in
+                showShortcutCheatSheet.toggle()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .showAgentInbox)) { _ in
+                showAgentInbox.toggle()
+            }
+    }
+
+    private func applyScrollbackHooks(_ view: some View) -> some View {
+        view
+            .onReceive(NotificationCenter.default.publisher(for: .showScrollbackHistory)) { _ in
+                showScrollbackHistory.toggle()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .addScrollbackCheckpoint)) { _ in
+                guard let state = resolveFocusedPane() else {
+                    ToastState.shared.show("No active pane to checkpoint")
+                    return
+                }
+                scrollbackCheckpointPrompt = state
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .toggleWorkflowRecording)) { _ in
+                handleToggleWorkflowRecording()
+            }
+    }
+
+    private func handleToggleWorkflowRecording() {
+        if WorkflowRecorder.shared.isRecording {
+            if let draft = WorkflowRecorder.shared.stop() {
+                workflowSavePrompt = WorkflowSavePromptState(draft: draft)
+            } else {
+                ToastState.shared.show("Recorded 0 steps — discarded")
+            }
+            return
+        }
+        WorkflowRecorder.shared.start()
+        ToastState.shared.show("Recording started — pick commands from the palette")
+    }
+
+    @ViewBuilder
+    private var commandPaletteOverlay: some View {
+        if showCommandPalette {
+            CommandPaletteOverlay(
+                palette: buildPalette(),
+                onSelect: { command in
+                    showCommandPalette = false
+                    PaletteRecentsStore.shared.bump(command.id)
+                    WorkflowRecorder.shared.recordStep(commandID: command.id)
+                    command.run()
+                },
+                onDismiss: { showCommandPalette = false }
+            )
+            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        }
+    }
+
+    @ViewBuilder
+    private var projectSearchOverlay: some View {
+        if showProjectSearch, let project = activeProject {
+            ProjectSearchOverlay(
+                projectPath: activeWorktreePath,
+                onSelect: { result, query in
+                    showProjectSearch = false
+                    let trimmed = query.trimmingCharacters(in: .whitespaces)
+                    openFile(result.absolutePath, project.id, trimmed.isEmpty ? nil : trimmed)
+                },
+                onReplaceAll: { query, replacement, results in
+                    Task {
+                        let outcome = await ProjectReplaceService.replace(
+                            query: query,
+                            replacement: replacement,
+                            in: results
+                        )
+                        await MainActor.run {
+                            showProjectSearch = false
+                            let filesWord = outcome.filesChanged == 1 ? "file" : "files"
+                            let message = "Replaced \(outcome.occurrencesReplaced) in \(outcome.filesChanged) \(filesWord)"
+                            ToastState.shared.show(message)
+                        }
+                    }
+                },
+                onDismiss: { showProjectSearch = false }
+            )
+            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        }
+    }
+
+    @ViewBuilder
+    private var cheatSheetOverlay: some View {
+        if showShortcutCheatSheet {
+            ShortcutCheatSheetOverlay(
+                keyBindings: .shared,
+                onDismiss: { showShortcutCheatSheet = false }
+            )
+            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        }
+    }
+
+    @ViewBuilder
+    private var agentInboxOverlay: some View {
+        if showAgentInbox {
+            AgentInboxOverlay(
+                store: .shared,
+                projectStore: projectStore,
+                onSelect: { session in
+                    showAgentInbox = false
+                    onAgentInboxSelect(session)
+                },
+                onClear: { session in
+                    AIAgentSessionStore.shared.remove(id: session.id)
+                },
+                onDismiss: { showAgentInbox = false }
+            )
+            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        }
+    }
+
+    @ViewBuilder
+    private var scrollbackHistoryOverlay: some View {
+        if showScrollbackHistory {
+            ScrollbackHistoryOverlay(
+                store: .shared,
+                projectStore: projectStore,
+                appState: appState,
+                onSelect: { checkpoint in
+                    onScrollbackSelect(checkpoint)
+                },
+                onExportBetween: { a, b in
+                    onScrollbackExportBetween(a, b)
+                },
+                onDelete: { checkpoint in
+                    TerminalScrollbackStore.shared.removeCheckpoint(id: checkpoint.id)
+                },
+                onDismiss: { showScrollbackHistory = false }
+            )
+            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        }
+    }
+
+    @ViewBuilder
+    private var scrollbackPromptOverlay: some View {
+        if let prompt = scrollbackCheckpointPrompt {
+            ScrollbackCheckpointPrompt(
+                prompt: prompt,
+                onSubmit: { label in
+                    onScrollbackPromptSubmit(prompt, label)
+                },
+                onDismiss: { scrollbackCheckpointPrompt = nil }
+            )
+            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        }
+    }
+
+    @ViewBuilder
+    private var workflowSavePromptOverlay: some View {
+        if let prompt = workflowSavePrompt {
+            WorkflowSavePrompt(
+                prompt: prompt,
+                onSave: { name in
+                    onSaveWorkflow(name, prompt.draft)
+                    workflowSavePrompt = nil
+                },
+                onDiscard: { workflowSavePrompt = nil }
+            )
+            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        }
+    }
+
+    @ViewBuilder
+    private var workflowRecordingBannerOverlay: some View {
+        if WorkflowRecorder.shared.isRecording {
+            WorkflowRecordingBanner(
+                stepCount: WorkflowRecorder.shared.stepCount,
+                onStop: {
+                    NotificationCenter.default.post(name: .toggleWorkflowRecording, object: nil)
+                }
+            )
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
     }
 }

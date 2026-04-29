@@ -7,19 +7,21 @@ struct ParsedDiffRows {
 }
 
 enum GitDiffParser {
-    static func parseRows(_ patch: String) -> ParsedDiffRows {
+    static func parseRows(_ patch: String, source: DiffDisplayRow.Source? = nil) -> ParsedDiffRows {
         var rows: [DiffDisplayRow] = []
         var oldLineNumber = 0
         var newLineNumber = 0
         var inHunk = false
         var additions = 0
         var deletions = 0
+        var hunkIndex = -1
 
         for rawLine in patch.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline) {
             let line = String(rawLine)
 
             if line.hasPrefix("@@") {
                 inHunk = true
+                hunkIndex += 1
                 let (oldStart, newStart) = parseHunkHeader(line)
                 oldLineNumber = oldStart
                 newLineNumber = newStart
@@ -29,7 +31,9 @@ enum GitDiffParser {
                     newLineNumber: nil,
                     oldText: nil,
                     newText: nil,
-                    text: line
+                    text: line,
+                    hunkIndex: hunkIndex,
+                    source: source
                 ))
                 continue
             }
@@ -44,7 +48,9 @@ enum GitDiffParser {
                     newLineNumber: newLineNumber,
                     oldText: content,
                     newText: content,
-                    text: " \(content)"
+                    text: " \(content)",
+                    hunkIndex: hunkIndex,
+                    source: source
                 ))
                 oldLineNumber += 1
                 newLineNumber += 1
@@ -59,7 +65,9 @@ enum GitDiffParser {
                     newLineNumber: nil,
                     oldText: content,
                     newText: nil,
-                    text: "-\(content)"
+                    text: "-\(content)",
+                    hunkIndex: hunkIndex,
+                    source: source
                 ))
                 oldLineNumber += 1
                 deletions += 1
@@ -74,7 +82,9 @@ enum GitDiffParser {
                     newLineNumber: newLineNumber,
                     oldText: nil,
                     newText: content,
-                    text: "+\(content)"
+                    text: "+\(content)",
+                    hunkIndex: hunkIndex,
+                    source: source
                 ))
                 newLineNumber += 1
                 additions += 1

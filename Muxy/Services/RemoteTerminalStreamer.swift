@@ -9,57 +9,30 @@ final class RemoteTerminalStreamer {
 
     weak var server: MuxyRemoteServer?
 
-    private var paneByToken: [Int: UUID] = [:]
-    private var tokenByPane: [UUID: Int] = [:]
-    private var nextToken: Int = 1
+    private var subscriptionsByPane: [UUID: TerminalOutputSubscription] = [:]
 
     private init() {}
 
-    func attach(paneID: UUID, surface: ghostty_surface_t) {
-        if tokenByPane[paneID] != nil { return }
-        let token = nextToken
-        nextToken += 1
-        tokenByPane[paneID] = token
-        paneByToken[token] = paneID
-        ghostty_surface_set_data_callback(
-            surface,
-            ptyDataCallback,
-            UnsafeMutableRawPointer(bitPattern: UInt(token))
-        )
+    func attach(paneID: UUID) {
+        if subscriptionsByPane[paneID] != nil { return }
+        let subscription = TerminalOutputBus.shared.subscribe(paneID: paneID) { [weak self] bytes, seq in
+            self?.forward(paneID: paneID, bytes: bytes, seq: seq)
+        }
+        subscriptionsByPane[paneID] = subscription
     }
 
-    func detach(paneID: UUID, surface: ghostty_surface_t) {
-        ghostty_surface_set_data_callback(surface, nil, nil)
-        if let token = tokenByPane.removeValue(forKey: paneID) {
-            paneByToken.removeValue(forKey: token)
+    func detach(paneID: UUID) {
+        if let subscription = subscriptionsByPane.removeValue(forKey: paneID) {
+            TerminalOutputBus.shared.unsubscribe(subscription)
         }
     }
 
-    fileprivate func pane(for token: Int) -> UUID? {
-        paneByToken[token]
-    }
-
-    fileprivate func forward(paneID: UUID, bytes: Data) {
+    fileprivate func forward(paneID: UUID, bytes: Data, seq: UInt64) {
         guard let clientID = PaneOwnershipStore.shared.remoteOwner(for: paneID) else { return }
         let event = MuxyEvent(
             event: .terminalOutput,
-            data: .terminalOutput(TerminalOutputEventDTO(paneID: paneID, bytes: bytes))
+            data: .terminalOutput(TerminalOutputEventDTO(paneID: paneID, bytes: bytes, seq: seq))
         )
         server?.send(event, to: clientID)
-    }
-}
-
-private let ptyDataCallback: @convention(c) (UnsafeMutableRawPointer?, UnsafePointer<UInt8>?, UInt) -> Void = { userdata, ptr, len in
-    guard let userdata,
-          let ptr,
-          len > 0
-    else { return }
-    let token = Int(bitPattern: userdata)
-    let bytes = Data(bytes: ptr, count: Int(len))
-    DispatchQueue.main.async {
-        MainActor.assumeIsolated {
-            guard let paneID = RemoteTerminalStreamer.shared.pane(for: token) else { return }
-            RemoteTerminalStreamer.shared.forward(paneID: paneID, bytes: bytes)
-        }
     }
 }

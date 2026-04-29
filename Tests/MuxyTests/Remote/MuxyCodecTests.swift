@@ -137,4 +137,66 @@ struct MuxyCodecTests {
         #expect(roundTripped.cells.count == 4)
         #expect(roundTripped.cells.first?.codepoint == 65)
     }
+
+    @Test("new encoders include protocolVersion on all envelopes")
+    func protocolVersionIsEmitted() throws {
+        let request = MuxyMessage.request(MuxyRequest(id: "p1", method: .listProjects))
+        let response = MuxyMessage.response(MuxyResponse(id: "p2", result: .ok))
+        let event = MuxyMessage.event(
+            MuxyEvent(event: .paneOwnershipChanged, data: .paneOwnership(
+                PaneOwnershipEventDTO(paneID: UUID(), owner: .mac(deviceName: "MacBook"))
+            ))
+        )
+        for message in [request, response, event] {
+            let data = try MuxyCodec.encode(message)
+            let json = try #require(String(data: data, encoding: .utf8))
+            #expect(json.contains("\"protocolVersion\":1"))
+        }
+    }
+
+    @Test("old payloads without protocolVersion still decode")
+    func legacyPayloadsDecodeWithoutProtocolVersion() throws {
+        let legacy = #"{"type":"request","payload":{"id":"x","method":"listProjects"}}"#
+        let data = Data(legacy.utf8)
+        let decoded = try MuxyCodec.decode(data)
+        guard case let .request(request) = decoded else {
+            Issue.record("expected .request")
+            return
+        }
+        #expect(request.id == "x")
+        #expect(request.method == .listProjects)
+        #expect(request.protocolVersion == nil)
+    }
+
+    @Test("terminal output event preserves seq field")
+    func terminalOutputSeqRoundTrip() throws {
+        let paneID = UUID()
+        let dto = TerminalOutputEventDTO(paneID: paneID, bytes: Data([0x68, 0x69]), seq: 42)
+        let message = MuxyMessage.event(MuxyEvent(event: .terminalOutput, data: .terminalOutput(dto)))
+        let data = try MuxyCodec.encode(message)
+        let decoded = try MuxyCodec.decode(data)
+        guard case let .event(event) = decoded,
+              case let .terminalOutput(roundTripped) = event.data
+        else {
+            Issue.record("expected terminalOutput event")
+            return
+        }
+        #expect(roundTripped.paneID == paneID)
+        #expect(roundTripped.seq == 42)
+    }
+
+    @Test("terminal output event without seq decodes as nil")
+    func terminalOutputSeqDefaultsNil() throws {
+        let json = #"{"type":"event","payload":{"protocolVersion":1,"event":"terminalOutput","data":{"type":"terminalOutput","value":{"paneID":"\#(UUID().uuidString)","bytes":"aGk="}}}}"#
+        let data = Data(json.utf8)
+        let decoded = try MuxyCodec.decode(data)
+        guard case let .event(event) = decoded,
+              case let .terminalOutput(dto) = event.data
+        else {
+            Issue.record("expected terminalOutput event")
+            return
+        }
+        #expect(dto.seq == nil)
+        #expect(dto.bytes == Data([0x68, 0x69]))
+    }
 }

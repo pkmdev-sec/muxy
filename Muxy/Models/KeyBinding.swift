@@ -55,6 +55,17 @@ enum ShortcutAction: String, Codable, CaseIterable, Identifiable {
     case toggleAIUsage
     case navigateBack
     case navigateForward
+    case toggleCommandPalette
+    case reopenClosedTab
+    case toggleBroadcastPane
+    case clearAllBroadcasts
+    case toggleZoomPane
+    case projectSearch
+    case showShortcutCheatSheet
+    case showAgentInbox
+    case addScrollbackCheckpoint
+    case showScrollbackHistory
+    case toggleWorkflowRecording
 
     static let allCases: [Self] = [
         .newTab,
@@ -103,6 +114,17 @@ enum ShortcutAction: String, Codable, CaseIterable, Identifiable {
         .toggleAIUsage,
         .navigateBack,
         .navigateForward,
+        .toggleCommandPalette,
+        .reopenClosedTab,
+        .toggleBroadcastPane,
+        .clearAllBroadcasts,
+        .toggleZoomPane,
+        .projectSearch,
+        .showShortcutCheatSheet,
+        .showAgentInbox,
+        .addScrollbackCheckpoint,
+        .showScrollbackHistory,
+        .toggleWorkflowRecording,
     ]
 
     var id: String { rawValue }
@@ -156,6 +178,17 @@ enum ShortcutAction: String, Codable, CaseIterable, Identifiable {
         case .newProject: ShortcutMetadata(displayName: "New Project", category: "App", scope: .mainWindow)
         case .openProject: ShortcutMetadata(displayName: "Open Project", category: "App", scope: .mainWindow)
         case .reloadConfig: ShortcutMetadata(displayName: "Reload Configuration", category: "App", scope: .global)
+        case .toggleCommandPalette: ShortcutMetadata(displayName: "Command Palette", category: "App", scope: .mainWindow)
+        case .reopenClosedTab: ShortcutMetadata(displayName: "Reopen Closed Tab", category: "Tabs", scope: .mainWindow)
+        case .toggleBroadcastPane: ShortcutMetadata(displayName: "Broadcast Input to Focused Pane", category: "Panes", scope: .mainWindow)
+        case .clearAllBroadcasts: ShortcutMetadata(displayName: "Stop All Broadcasts", category: "Panes", scope: .mainWindow)
+        case .toggleZoomPane: ShortcutMetadata(displayName: "Zoom Pane", category: "Panes", scope: .mainWindow)
+        case .projectSearch: ShortcutMetadata(displayName: "Find in Project", category: "App", scope: .mainWindow)
+        case .showShortcutCheatSheet: ShortcutMetadata(displayName: "Keyboard Shortcuts", category: "App", scope: .mainWindow)
+        case .showAgentInbox: ShortcutMetadata(displayName: "Agent Inbox", category: "App", scope: .mainWindow)
+        case .addScrollbackCheckpoint: ShortcutMetadata(displayName: "Drop Scrollback Checkpoint", category: "Terminal", scope: .mainWindow)
+        case .showScrollbackHistory: ShortcutMetadata(displayName: "Scrollback History", category: "App", scope: .mainWindow)
+        case .toggleWorkflowRecording: ShortcutMetadata(displayName: "Record Workflow", category: "App", scope: .mainWindow)
         }
     }
 
@@ -225,8 +258,8 @@ struct KeyBinding: Codable, Identifiable {
     static let defaults: [Self] = [
         Self(action: .newTab, combo: KeyCombo(key: "t", command: true)),
         Self(action: .closeTab, combo: KeyCombo(key: "w", command: true)),
-        Self(action: .renameTab, combo: KeyCombo(key: "t", command: true, shift: true)),
-        Self(action: .pinUnpinTab, combo: KeyCombo(key: "p", command: true, shift: true)),
+        Self(action: .renameTab, combo: KeyCombo(key: "r", command: true, control: true)),
+        Self(action: .pinUnpinTab, combo: KeyCombo(key: "i", command: true, shift: true)),
         Self(action: .splitRight, combo: KeyCombo(key: "d", command: true)),
         Self(action: .splitDown, combo: KeyCombo(key: "d", command: true, shift: true)),
         Self(action: .closePane, combo: KeyCombo(key: "w", command: true, shift: true)),
@@ -269,5 +302,16 @@ struct KeyBinding: Codable, Identifiable {
         Self(action: .toggleAIUsage, combo: KeyCombo(key: "l", command: true)),
         Self(action: .navigateBack, combo: KeyCombo(key: KeyCombo.leftArrowKey, command: true, control: true)),
         Self(action: .navigateForward, combo: KeyCombo(key: KeyCombo.rightArrowKey, command: true, control: true)),
+        Self(action: .toggleCommandPalette, combo: KeyCombo(key: "p", command: true, shift: true)),
+        Self(action: .reopenClosedTab, combo: KeyCombo(key: "t", command: true, shift: true)),
+        Self(action: .toggleBroadcastPane, combo: KeyCombo(key: "b", command: true, control: true)),
+        Self(action: .clearAllBroadcasts, combo: KeyCombo(key: "b", command: true, shift: true, control: true)),
+        Self(action: .toggleZoomPane, combo: KeyCombo(key: "z", command: true, shift: true)),
+        Self(action: .projectSearch, combo: KeyCombo(key: "f", command: true, shift: true)),
+        Self(action: .showShortcutCheatSheet, combo: KeyCombo(key: "/", command: true)),
+        Self(action: .showAgentInbox, combo: KeyCombo(key: "a", command: true, shift: true)),
+        Self(action: .addScrollbackCheckpoint, combo: KeyCombo(key: "m", command: true, shift: true)),
+        Self(action: .showScrollbackHistory, combo: KeyCombo(key: "h", command: true, shift: true)),
+        Self(action: .toggleWorkflowRecording, combo: KeyCombo(key: "r", command: true, option: true)),
     ]
 }

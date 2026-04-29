@@ -44,6 +44,17 @@ final class NotificationStore {
         return notifications.contains { !$0.isRead && $0.tabID == tabID }
     }
 
+    func hasRecentAIActivity(tabID: UUID, withinSeconds window: TimeInterval = 600) -> Bool {
+        _ = readStateVersion
+        let cutoff = Date().addingTimeInterval(-window)
+        return notifications.contains { notification in
+            guard case .aiProvider = notification.source else { return false }
+            guard notification.tabID == tabID else { return false }
+            guard !notification.isRead else { return false }
+            return notification.timestamp >= cutoff
+        }
+    }
+
     func markAsRead(tabID: UUID) {
         var changed = false
         for notification in notifications where !notification.isRead && notification.tabID == tabID {
@@ -110,6 +121,7 @@ final class NotificationStore {
     }
 
     private func insertIfNotFocused(_ notification: MuxyNotification, appState: AppState) {
+        AIAgentSessionStore.shared.ingestNotification(notification)
         if NSApp.isActive, NotificationNavigator.isActiveTab(notification.tabID, appState: appState) {
             return
         }

@@ -12,19 +12,33 @@ struct PairingRequest: Identifiable, Equatable {
     let receivedAt: Date
 }
 
+enum PairingDecision: Sendable {
+    case approved
+    case denied
+    case timedOut
+}
+
 @MainActor
 @Observable
 final class PairingRequestCoordinator {
     static let shared = PairingRequestCoordinator()
+    static let defaultTimeout: Duration = .seconds(60)
 
     private(set) var pendingRequest: PairingRequest?
 
-    private var continuations: [UUID: CheckedContinuation<Bool, Never>] = [:]
+    private var continuations: [UUID: CheckedContinuation<PairingDecision, Never>] = [:]
+    private var timeoutTasks: [UUID: Task<Void, Never>] = [:]
     private var queue: [PairingRequest] = []
+    private var activeAlert: NSAlert?
 
     private init() {}
 
-    func requestApproval(deviceID: UUID, deviceName: String, token: String) async -> Bool {
+    func requestApproval(
+        deviceID: UUID,
+        deviceName: String,
+        token: String,
+        timeout: Duration = PairingRequestCoordinator.defaultTimeout
+    ) async -> PairingDecision {
         let request = PairingRequest(
             deviceID: deviceID,
             deviceName: deviceName,
@@ -33,6 +47,7 @@ final class PairingRequestCoordinator {
         )
         return await withCheckedContinuation { continuation in
             continuations[request.id] = continuation
+            scheduleTimeout(for: request, duration: timeout)
             if pendingRequest == nil {
                 present(request)
             } else {
@@ -47,18 +62,47 @@ final class PairingRequestCoordinator {
             name: request.deviceName,
             token: request.token
         )
-        finish(request, approved: true)
+        finish(request, decision: .approved)
     }
 
     func deny(_ request: PairingRequest) {
-        finish(request, approved: false)
+        finish(request, decision: .denied)
     }
 
-    private func finish(_ request: PairingRequest, approved: Bool) {
+    private func scheduleTimeout(for request: PairingRequest, duration: Duration) {
+        let id = request.id
+        timeoutTasks[id]?.cancel()
+        timeoutTasks[id] = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled else { return }
+            self?.timeoutFired(id)
+        }
+    }
+
+    private func timeoutFired(_ id: UUID) {
+        guard continuations[id] != nil else { return }
+        timeoutTasks.removeValue(forKey: id)?.cancel()
+        if let pending = pendingRequest, pending.id == id {
+            logger.info("Pairing request timed out for device \(pending.deviceName, privacy: .public)")
+            if activeAlert != nil {
+                NSApp.abortModal()
+            }
+            finish(pending, decision: .timedOut)
+            return
+        }
+        queue.removeAll { $0.id == id }
+        if let continuation = continuations.removeValue(forKey: id) {
+            continuation.resume(returning: .timedOut)
+        }
+    }
+
+    private func finish(_ request: PairingRequest, decision: PairingDecision) {
+        timeoutTasks.removeValue(forKey: request.id)?.cancel()
         guard let continuation = continuations.removeValue(forKey: request.id) else { return }
-        continuation.resume(returning: approved)
+        continuation.resume(returning: decision)
         if pendingRequest?.id == request.id {
             pendingRequest = nil
+            activeAlert = nil
             if let next = queue.first {
                 queue.removeFirst()
                 present(next)
@@ -89,12 +133,14 @@ final class PairingRequestCoordinator {
         alert.buttons[0].keyEquivalent = "\r"
         alert.buttons[1].keyEquivalent = "\u{1b}"
 
+        activeAlert = alert
         let response = alert.runModal()
+        activeAlert = nil
         guard pendingRequest?.id == request.id else { return }
 
         if response == .alertFirstButtonReturn {
             approve(request)
-        } else {
+        } else if response != .abort {
             deny(request)
         }
     }

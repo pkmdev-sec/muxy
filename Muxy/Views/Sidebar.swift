@@ -247,6 +247,7 @@ struct SidebarFooter: View {
     @State private var showNotifications = false
     @State private var showAIUsagePopover = false
     private let usageService = AIUsageService.shared
+    private var agentStore: AIAgentSessionStore { AIAgentSessionStore.shared }
 
     private var usageDisplayMode: AIUsageDisplayMode {
         AIUsageDisplayMode(rawValue: usageDisplayModeRaw) ?? AIUsageSettingsStore.defaultUsageDisplayMode
@@ -305,6 +306,37 @@ struct SidebarFooter: View {
         notificationStore.unreadCount > 0 ? "bell.badge" : "bell"
     }
 
+    private var activeAgentCount: Int {
+        agentStore.sessions.count { session in
+            session.status == .thinking || session.status == .awaitingInput
+        }
+    }
+
+    private var agentIconName: String { "sparkles.rectangle.stack" }
+
+    private func postShowAgentInbox() {
+        NotificationCenter.default.post(name: .showAgentInbox, object: nil)
+    }
+
+    @ViewBuilder
+    private var agentInboxButton: some View {
+        let shortcut = KeyBindingStore.shared.combo(for: .showAgentInbox).displayString
+        ZStack(alignment: .topTrailing) {
+            IconButton(symbol: agentIconName, accessibilityLabel: "Agent Inbox") { postShowAgentInbox() }
+            if activeAgentCount > 0 {
+                Text("\(activeAgentCount)")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(MuxyTheme.accent, in: Capsule())
+                    .offset(x: 4, y: -4)
+                    .accessibilityLabel("\(activeAgentCount) active agents")
+            }
+        }
+        .help("Agent Inbox (\(shortcut))")
+    }
+
     private var previewProviderDisplay: (percent: Int, iconName: String)? {
         guard let selection = usageService.previewSelection(pinnedRawValue: pinnedPreviewProviderID),
               case .available = selection.snapshot.state
@@ -351,6 +383,7 @@ struct SidebarFooter: View {
             if usageEnabled {
                 aiUsageButton
             }
+            agentInboxButton
             IconButton(symbol: notificationBellIcon, accessibilityLabel: "Notifications") { showNotifications.toggle() }
                 .help("Notifications")
                 .popover(isPresented: $showNotifications) {
@@ -375,6 +408,7 @@ struct SidebarFooter: View {
             if usageEnabled {
                 aiUsageButton
             }
+            agentInboxButton
             IconButton(symbol: notificationBellIcon, accessibilityLabel: "Notifications") { showNotifications.toggle() }
                 .help("Notifications")
                 .popover(isPresented: $showNotifications) {

@@ -97,6 +97,70 @@ struct TabAreaSnapshot: Codable {
     let activeTabIndex: Int?
 }
 
+struct AgentCanvasNodeSnapshot: Codable, Equatable {
+    let id: UUID
+    let paneID: UUID?
+    let tabID: UUID?
+    let areaID: UUID?
+    let label: String
+    let agentID: String?
+    let positionX: Double
+    let positionY: Double
+}
+
+struct AgentCanvasWireSnapshot: Codable, Equatable {
+    let id: UUID
+    let sourceNodeID: UUID
+    let targetNodeID: UUID
+    let kind: String
+    let label: String?
+    let isActive: Bool
+    let fileWatchGlob: String?
+    let fileWatchCommand: String?
+
+    init(
+        id: UUID,
+        sourceNodeID: UUID,
+        targetNodeID: UUID,
+        kind: String,
+        label: String?,
+        isActive: Bool,
+        fileWatchGlob: String? = nil,
+        fileWatchCommand: String? = nil
+    ) {
+        self.id = id
+        self.sourceNodeID = sourceNodeID
+        self.targetNodeID = targetNodeID
+        self.kind = kind
+        self.label = label
+        self.isActive = isActive
+        self.fileWatchGlob = fileWatchGlob
+        self.fileWatchCommand = fileWatchCommand
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, sourceNodeID, targetNodeID, kind, label, isActive
+        case fileWatchGlob, fileWatchCommand
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        sourceNodeID = try container.decode(UUID.self, forKey: .sourceNodeID)
+        targetNodeID = try container.decode(UUID.self, forKey: .targetNodeID)
+        kind = try container.decode(String.self, forKey: .kind)
+        label = try container.decodeIfPresent(String.self, forKey: .label)
+        isActive = try container.decode(Bool.self, forKey: .isActive)
+        fileWatchGlob = try container.decodeIfPresent(String.self, forKey: .fileWatchGlob)
+        fileWatchCommand = try container.decodeIfPresent(String.self, forKey: .fileWatchCommand)
+    }
+}
+
+struct AgentCanvasGraphSnapshot: Codable, Equatable {
+    let nodes: [AgentCanvasNodeSnapshot]
+    let wires: [AgentCanvasWireSnapshot]
+}
+
 struct TerminalTabSnapshot: Codable {
     let kind: TerminalTab.Kind
     let customTitle: String?
@@ -105,6 +169,9 @@ struct TerminalTabSnapshot: Codable {
     let projectPath: String
     let paneTitle: String
     let filePath: String?
+    let testRunnerCommandLine: String?
+    let agentCanvasName: String?
+    let agentCanvasGraph: AgentCanvasGraphSnapshot?
 
     init(
         kind: TerminalTab.Kind,
@@ -113,7 +180,10 @@ struct TerminalTabSnapshot: Codable {
         isPinned: Bool,
         projectPath: String,
         paneTitle: String?,
-        filePath: String? = nil
+        filePath: String? = nil,
+        testRunnerCommandLine: String? = nil,
+        agentCanvasName: String? = nil,
+        agentCanvasGraph: AgentCanvasGraphSnapshot? = nil
     ) {
         self.kind = kind
         self.customTitle = customTitle
@@ -122,6 +192,9 @@ struct TerminalTabSnapshot: Codable {
         self.projectPath = projectPath
         self.paneTitle = paneTitle ?? "Terminal"
         self.filePath = filePath
+        self.testRunnerCommandLine = testRunnerCommandLine
+        self.agentCanvasName = agentCanvasName
+        self.agentCanvasGraph = agentCanvasGraph
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -132,6 +205,9 @@ struct TerminalTabSnapshot: Codable {
         case projectPath
         case paneTitle
         case filePath
+        case testRunnerCommandLine
+        case agentCanvasName
+        case agentCanvasGraph
     }
 
     init(from decoder: Decoder) throws {
@@ -143,6 +219,9 @@ struct TerminalTabSnapshot: Codable {
         projectPath = try container.decode(String.self, forKey: .projectPath)
         paneTitle = try container.decodeIfPresent(String.self, forKey: .paneTitle) ?? "Terminal"
         filePath = try container.decodeIfPresent(String.self, forKey: .filePath)
+        testRunnerCommandLine = try container.decodeIfPresent(String.self, forKey: .testRunnerCommandLine)
+        agentCanvasName = try container.decodeIfPresent(String.self, forKey: .agentCanvasName)
+        agentCanvasGraph = try container.decodeIfPresent(AgentCanvasGraphSnapshot.self, forKey: .agentCanvasGraph)
     }
 }
 

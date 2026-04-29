@@ -102,6 +102,30 @@ enum WorkspaceReducer {
                 state: &state
             )
 
+        case let .createTestRunnerTab(projectID, areaID, commandLine, framework):
+            TabReducer.createTestRunnerTab(
+                projectID: projectID,
+                areaID: areaID,
+                commandLine: commandLine,
+                framework: framework,
+                state: &state
+            )
+
+        case let .createAgentCanvasTab(projectID, areaID, name):
+            TabReducer.createAgentCanvasTab(
+                projectID: projectID,
+                areaID: areaID,
+                name: name,
+                state: &state
+            )
+
+        case let .createGitLogTab(projectID, areaID):
+            TabReducer.createGitLogTab(
+                projectID: projectID,
+                areaID: areaID,
+                state: &state
+            )
+
         case let .closeTab(projectID, areaID, tabID):
             guard let key = WorkspaceReducerShared.activeKey(projectID: projectID, state: state) else { break }
             TabReducer.closeTab(tabID, areaID: areaID, key: key, state: &state, effects: &effects)

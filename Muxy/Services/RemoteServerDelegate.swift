@@ -193,13 +193,16 @@ final class RemoteServerDelegate: MuxyRemoteServerDelegate {
         if ApprovedDevicesStore.shared.devices.contains(where: { $0.id == deviceID }) {
             return .denied
         }
-        let approved = await PairingRequestCoordinator.shared.requestApproval(
+        let decision = await PairingRequestCoordinator.shared.requestApproval(
             deviceID: deviceID,
             deviceName: name,
             token: token
         )
-        guard approved else { return .denied }
-        return .approved(deviceName: name)
+        switch decision {
+        case .approved: return .approved(deviceName: name)
+        case .denied: return .denied
+        case .timedOut: return .timedOut
+        }
     }
 
     func getDeviceTheme() -> DeviceThemeEventDTO? {

@@ -16,4 +16,11 @@ extension Notification.Name {
     static let toggleNotificationPanel = Notification.Name("MuxyToggleNotificationPanel")
     static let toggleAIUsage = Notification.Name("MuxyToggleAIUsage")
     static let vcsRepoDidChange = Notification.Name("MuxyVCSRepoDidChange")
+    static let toggleCommandPalette = Notification.Name("MuxyToggleCommandPalette")
+    static let projectSearch = Notification.Name("MuxyProjectSearch")
+    static let showShortcutCheatSheet = Notification.Name("MuxyShowShortcutCheatSheet")
+    static let showAgentInbox = Notification.Name("MuxyShowAgentInbox")
+    static let addScrollbackCheckpoint = Notification.Name("MuxyAddScrollbackCheckpoint")
+    static let showScrollbackHistory = Notification.Name("MuxyShowScrollbackHistory")
+    static let toggleWorkflowRecording = Notification.Name("MuxyToggleWorkflowRecording")
 }

@@ -36,6 +36,9 @@ final class AppState {
         case createEditorTab(projectID: UUID, areaID: UUID?, filePath: String)
         case createExternalEditorTab(projectID: UUID, areaID: UUID?, filePath: String, command: String)
         case createDiffViewerTab(projectID: UUID, areaID: UUID?, request: DiffViewerRequest)
+        case createTestRunnerTab(projectID: UUID, areaID: UUID?, commandLine: String, framework: TestRunnerTabState.Framework)
+        case createAgentCanvasTab(projectID: UUID, areaID: UUID?, name: String)
+        case createGitLogTab(projectID: UUID, areaID: UUID?)
         case closeTab(projectID: UUID, areaID: UUID, tabID: UUID)
         case selectTab(projectID: UUID, areaID: UUID, tabID: UUID)
         case selectTabByIndex(projectID: UUID, areaID: UUID?, index: Int)
@@ -76,6 +79,8 @@ final class AppState {
     var pendingProcessTabClose: PendingTabClose?
     var pendingSaveErrorMessage: String?
     let navigation = NavigationHistory()
+    let closedTabHistory = ClosedTabHistory()
+    var zoomedAreaID: [WorktreeKey: UUID] = [:]
     private var focusHistory: [WorktreeKey: [UUID]] = [:]
 
     init(
@@ -210,7 +215,28 @@ final class AppState {
         dispatch(.createVCSTab(projectID: projectID, areaID: nil))
     }
 
-    func openFile(_ filePath: String, projectID: UUID) {
+    func createTestRunnerTab(projectID: UUID, commandLine: String, framework: TestRunnerTabState.Framework) {
+        dispatch(.createTestRunnerTab(
+            projectID: projectID,
+            areaID: nil,
+            commandLine: commandLine,
+            framework: framework
+        ))
+    }
+
+    func createAgentCanvasTab(projectID: UUID, name: String = "Agent Canvas") {
+        dispatch(.createAgentCanvasTab(
+            projectID: projectID,
+            areaID: nil,
+            name: name
+        ))
+    }
+
+    func createGitLogTab(projectID: UUID) {
+        dispatch(.createGitLogTab(projectID: projectID, areaID: nil))
+    }
+
+    func openFile(_ filePath: String, projectID: UUID, initialSearchNeedle: String? = nil) {
         let settings = EditorSettings.shared
         if settings.defaultEditor == .terminalCommand {
             let command = settings.externalEditorCommand.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -222,10 +248,26 @@ final class AppState {
         for area in allAreas(for: projectID) {
             if let tab = area.tabs.first(where: { $0.content.editorState?.filePath == filePath }) {
                 dispatch(.selectTab(projectID: projectID, areaID: area.id, tabID: tab.id))
+                applyInitialSearchNeedle(initialSearchNeedle, to: tab)
                 return
             }
         }
         dispatch(.createEditorTab(projectID: projectID, areaID: nil, filePath: filePath))
+        if initialSearchNeedle != nil {
+            for area in allAreas(for: projectID) {
+                if let tab = area.tabs.first(where: { $0.content.editorState?.filePath == filePath }) {
+                    applyInitialSearchNeedle(initialSearchNeedle, to: tab)
+                    return
+                }
+            }
+        }
+    }
+
+    private func applyInitialSearchNeedle(_ needle: String?, to tab: TerminalTab) {
+        guard let needle, !needle.isEmpty, let editor = tab.content.editorState else { return }
+        editor.searchNeedle = needle
+        editor.searchVisible = true
+        editor.searchFocusVersion += 1
     }
 
     func handleFileMoved(from oldPath: String, to newPath: String) {
@@ -293,6 +335,7 @@ final class AppState {
     func forceCloseTab(_ tabID: UUID, areaID: UUID, projectID: UUID) {
         clearPendingProcessCloseIfMatching(tabID: tabID, areaID: areaID, projectID: projectID)
         unpinTabIfNeeded(tabID, areaID: areaID, projectID: projectID)
+        captureClosedTab(tabID: tabID, areaID: areaID, projectID: projectID)
         dispatch(.closeTab(projectID: projectID, areaID: areaID, tabID: tabID))
     }
 
@@ -346,17 +389,104 @@ final class AppState {
             pendingLastTabClose = PendingTabClose(projectID: projectID, areaID: areaID, tabID: tabID)
             return
         }
+        captureClosedTab(tabID: tabID, areaID: areaID, projectID: projectID)
         dispatch(.closeTab(projectID: projectID, areaID: areaID, tabID: tabID))
     }
+
+
 
     func confirmCloseLastTab() {
         guard let pending = pendingLastTabClose else { return }
         pendingLastTabClose = nil
+        captureClosedTab(tabID: pending.tabID, areaID: pending.areaID, projectID: pending.projectID)
         dispatch(.closeTab(projectID: pending.projectID, areaID: pending.areaID, tabID: pending.tabID))
     }
 
     func cancelCloseLastTab() {
         pendingLastTabClose = nil
+    }
+
+    private func captureClosedTab(tabID: UUID, areaID: UUID, projectID: UUID) {
+        guard let key = activeWorktreeKey(for: projectID),
+              let root = workspaceRoots[key],
+              let area = root.findArea(id: areaID),
+              let tab = area.tabs.first(where: { $0.id == tabID })
+        else { return }
+
+        let payload: ClosedTabRecord.Payload
+        switch tab.content {
+        case let .terminal(pane):
+            payload = .terminal(workingDirectory: pane.projectPath)
+        case let .editor(state):
+            payload = .editor(filePath: state.filePath)
+        case .vcs:
+            payload = .vcs
+        case .diffViewer:
+            return
+        case .testRunner:
+            return
+        case .agentCanvas:
+            return
+        case .gitLog:
+            return
+        }
+
+        closedTabHistory.push(ClosedTabRecord(
+            projectID: projectID,
+            worktreeID: key.worktreeID,
+            areaID: areaID,
+            payload: payload,
+            customTitle: tab.customTitle,
+            colorID: tab.colorID,
+            isPinned: tab.isPinned
+        ))
+    }
+
+    func reopenLastClosedTab() {
+        guard let record = closedTabHistory.pop() else { return }
+
+        let targetKey = WorktreeKey(projectID: record.projectID, worktreeID: record.worktreeID)
+        let areaExists = workspaceRoots[targetKey]?.findArea(id: record.areaID) != nil
+        let targetAreaID: UUID? = areaExists ? record.areaID : nil
+
+        switch record.payload {
+        case let .terminal(workingDirectory):
+            dispatch(.createTabInDirectory(
+                projectID: record.projectID,
+                areaID: targetAreaID,
+                directory: workingDirectory
+            ))
+        case let .editor(filePath):
+            dispatch(.createEditorTab(
+                projectID: record.projectID,
+                areaID: targetAreaID,
+                filePath: filePath
+            ))
+        case .vcs:
+            dispatch(.createVCSTab(projectID: record.projectID, areaID: targetAreaID))
+        }
+
+        applyClosedTabMetadata(record: record)
+    }
+
+    private func applyClosedTabMetadata(record: ClosedTabRecord) {
+        let key = WorktreeKey(projectID: record.projectID, worktreeID: record.worktreeID)
+        guard let root = workspaceRoots[key],
+              let focusedID = focusedAreaID[key],
+              let area = root.findArea(id: focusedID),
+              let newTab = area.tabs.last
+        else { return }
+
+        if let title = record.customTitle {
+            newTab.customTitle = title
+        }
+        if let colorID = record.colorID {
+            newTab.colorID = colorID
+        }
+        if record.isPinned, !newTab.isPinned {
+            area.togglePin(newTab.id)
+        }
+        saveWorkspaces()
     }
 
     private func unpinTabIfNeeded(_ tabID: UUID, areaID: UUID, projectID: UUID) {
@@ -484,10 +614,19 @@ final class AppState {
 
         for paneID in effects.paneIDsToRemove {
             terminalViews.removeView(for: paneID)
+            PaneOwnershipStore.shared.remove(paneID: paneID)
         }
 
         if !effects.projectIDsToRemove.isEmpty {
+            for projectID in effects.projectIDsToRemove {
+                closedTabHistory.clearEntriesForProject(projectID)
+                zoomedAreaID = zoomedAreaID.filter { $0.key.projectID != projectID }
+            }
             onProjectsEmptied?(effects.projectIDsToRemove)
+        }
+
+        for key in zoomedAreaID.keys {
+            clearZoomIfAreaMissing(for: key)
         }
 
         pruneNavigationHistory()
@@ -617,6 +756,77 @@ final class AppState {
               let area = root.findArea(id: areaID)
         else { return false }
         return area.tabs.contains(where: { $0.id == tabID })
+    }
+
+    func toggleZoomedArea(projectID: UUID) {
+        guard let key = activeWorktreeKey(for: projectID) else { return }
+        if zoomedAreaID[key] != nil {
+            zoomedAreaID.removeValue(forKey: key)
+            return
+        }
+        guard let focused = focusedAreaID[key] else { return }
+        guard let root = workspaceRoots[key], case .split = root else { return }
+        zoomedAreaID[key] = focused
+    }
+
+    func applyTemplate(
+        _ template: WorkspaceTemplate,
+        projectID: UUID,
+        worktreeID: UUID,
+        worktreePath: String
+    ) {
+        let key = WorktreeKey(projectID: projectID, worktreeID: worktreeID)
+        let existingPaneIDs = workspaceRoots[key].map(collectPaneIDs(root:)) ?? []
+        let newRoot = WorkspaceTemplateApplier.splitNode(from: template, basePath: worktreePath)
+        workspaceRoots[key] = newRoot
+        if case let .tabArea(area) = newRoot {
+            focusedAreaID[key] = area.id
+        } else if case let .split(branch) = newRoot,
+                  let firstArea = branch.first.allAreas().first
+        {
+            focusedAreaID[key] = firstArea.id
+        }
+        zoomedAreaID.removeValue(forKey: key)
+        for paneID in existingPaneIDs {
+            terminalViews.removeView(for: paneID)
+            PaneOwnershipStore.shared.remove(paneID: paneID)
+        }
+        saveWorkspaces()
+    }
+
+    func saveCurrentLayoutAsTemplate(named name: String) -> WorkspaceTemplate? {
+        guard let projectID = activeProjectID,
+              let key = activeWorktreeKey(for: projectID),
+              let root = workspaceRoots[key]
+        else { return nil }
+        let basePath: String
+        if case let .tabArea(area) = root {
+            basePath = area.projectPath
+        } else {
+            basePath = root.allAreas().first?.projectPath ?? ""
+        }
+        let template = WorkspaceTemplateBuilder.template(name: name, from: root, basePath: basePath)
+        WorkspaceTemplateStore.shared.add(template)
+        return template
+    }
+
+    private func collectPaneIDs(root: SplitNode) -> [UUID] {
+        var ids: [UUID] = []
+        for area in root.allAreas() {
+            for tab in area.tabs {
+                if let pane = tab.content.pane {
+                    ids.append(pane.id)
+                }
+            }
+        }
+        return ids
+    }
+
+    func clearZoomIfAreaMissing(for key: WorktreeKey) {
+        guard let zoomed = zoomedAreaID[key] else { return }
+        if workspaceRoots[key]?.findArea(id: zoomed) == nil {
+            zoomedAreaID.removeValue(forKey: key)
+        }
     }
 
     func focusArea(_ areaID: UUID, projectID: UUID) {

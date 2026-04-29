@@ -52,6 +52,12 @@ final class VCSTabState {
     var files: [GitStatusFile] = []
     var mode: ViewMode = .unified
     var expandedFilePaths: Set<String> = []
+    var conflictRegionsByPath: [String: [GitConflictRegion]] = [:]
+    var loadingConflictPaths: Set<String> = []
+    var conflictErrorsByPath: [String: String] = [:]
+    var stashes: [GitStashEntry] = []
+    var isLoadingStashes = false
+    var stashError: String?
     var isLoadingFiles = false
     var errorMessage: String?
     let diffCache = DiffCache()
@@ -205,11 +211,102 @@ final class VCSTabState {
     }
 
     private func watcherDidFire() {
+        invalidateConflictCache()
         guard !isRefreshing else {
             pendingRefresh = true
             return
         }
         performRefresh(incremental: true)
+    }
+
+    func loadStashes() {
+        guard !isLoadingStashes else { return }
+        isLoadingStashes = true
+        stashError = nil
+        Task { [weak self] in
+            guard let self else { return }
+            defer { isLoadingStashes = false }
+            do {
+                let entries = try await git.listStashes(repoPath: projectPath)
+                guard !Task.isCancelled else { return }
+                stashes = entries
+            } catch {
+                guard !Task.isCancelled else { return }
+                stashError = errorText(error)
+            }
+        }
+    }
+
+    func pushStash(message: String?, includeUntracked: Bool) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await git.pushStash(
+                    repoPath: projectPath,
+                    message: message,
+                    includeUntracked: includeUntracked
+                )
+                guard !Task.isCancelled else { return }
+                ToastState.shared.show("Stashed changes")
+                performRefresh(incremental: true)
+                loadStashes()
+            } catch {
+                guard !Task.isCancelled else { return }
+                showStatus(errorText(error), isError: true)
+            }
+        }
+    }
+
+    func applyStash(slot: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await git.applyStash(repoPath: projectPath, slot: slot)
+                guard !Task.isCancelled else { return }
+                ToastState.shared.show("Applied \(slot)")
+                performRefresh(incremental: true)
+            } catch {
+                guard !Task.isCancelled else { return }
+                showStatus(errorText(error), isError: true)
+            }
+        }
+    }
+
+    func popStash(slot: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await git.popStash(repoPath: projectPath, slot: slot)
+                guard !Task.isCancelled else { return }
+                ToastState.shared.show("Popped \(slot)")
+                performRefresh(incremental: true)
+                loadStashes()
+            } catch {
+                guard !Task.isCancelled else { return }
+                showStatus(errorText(error), isError: true)
+            }
+        }
+    }
+
+    func dropStash(slot: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await git.dropStash(repoPath: projectPath, slot: slot)
+                guard !Task.isCancelled else { return }
+                ToastState.shared.show("Dropped \(slot)")
+                loadStashes()
+            } catch {
+                guard !Task.isCancelled else { return }
+                showStatus(errorText(error), isError: true)
+            }
+        }
+    }
+
+    func invalidateConflictCache() {
+        conflictRegionsByPath.removeAll()
+        loadingConflictPaths.removeAll()
+        conflictErrorsByPath.removeAll()
     }
 
     func refresh() {
@@ -479,6 +576,160 @@ final class VCSTabState {
         performGitOperation {
             try await self.git.unstageFiles(repoPath: self.projectPath, paths: [path])
         }
+    }
+    func stageHunk(filePath: String, hunkIndex: Int) {
+        guard let diff = diffCache.diff(for: filePath),
+              !diff.rawUnstagedPatch.isEmpty,
+              let patch = GitPatchBuilder.buildPatch(
+                  from: diff.rawUnstagedPatch,
+                  selectingHunkIndices: [relativeHunkIndex(from: hunkIndex, in: diff, source: .unstaged)]
+              )
+        else {
+            showStatus("Couldn\u{27}t stage this hunk. Try refreshing.", isError: true)
+            return
+        }
+        performGitOperation {
+            try await self.git.applyPatch(repoPath: self.projectPath, patch: patch, cached: true, reverse: false)
+        }
+    }
+
+    func ensureConflictsLoaded(filePath: String) {
+        guard conflictRegionsByPath[filePath] == nil,
+              !loadingConflictPaths.contains(filePath)
+        else { return }
+        loadingConflictPaths.insert(filePath)
+        conflictErrorsByPath[filePath] = nil
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let regions = try await git.readConflictRegions(repoPath: projectPath, filePath: filePath)
+                guard !Task.isCancelled else { return }
+                conflictRegionsByPath[filePath] = regions
+                loadingConflictPaths.remove(filePath)
+            } catch {
+                guard !Task.isCancelled else { return }
+                conflictErrorsByPath[filePath] = errorText(error)
+                loadingConflictPaths.remove(filePath)
+            }
+        }
+    }
+
+    func resolveConflict(
+        filePath: String,
+        regionIndex: Int,
+        choice: GitConflictResolutionChoice
+    ) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let result = try await git.resolveConflictRegion(
+                    repoPath: projectPath,
+                    filePath: filePath,
+                    regionIndex: regionIndex,
+                    choice: choice
+                )
+                guard !Task.isCancelled else { return }
+                conflictRegionsByPath.removeValue(forKey: filePath)
+                if result.resolvedAllRegions {
+                    showStatus("Resolved conflicts in \(filePath)", isError: false)
+                }
+                performRefresh(incremental: true)
+                ensureConflictsLoaded(filePath: filePath)
+            } catch {
+                guard !Task.isCancelled else { return }
+                showStatus(errorText(error), isError: true)
+            }
+        }
+    }
+
+    func unstageHunk(filePath: String, hunkIndex: Int) {
+        guard let diff = diffCache.diff(for: filePath),
+              !diff.rawStagedPatch.isEmpty,
+              let patch = GitPatchBuilder.buildPatch(
+                  from: diff.rawStagedPatch,
+                  selectingHunkIndices: [relativeHunkIndex(from: hunkIndex, in: diff, source: .staged)]
+              )
+        else {
+            showStatus("Couldn\u{27}t unstage this hunk. Try refreshing.", isError: true)
+            return
+        }
+        performGitOperation {
+            try await self.git.applyPatch(repoPath: self.projectPath, patch: patch, cached: true, reverse: true)
+        }
+    }
+
+    func stageLine(filePath: String, lineSelection: GitPatchBuilder.LineSelection) {
+        applyLineSelection(
+            filePath: filePath,
+            globalHunkIndex: lineSelection.hunkIndex,
+            bodyLineIndex: lineSelection.bodyLineIndex,
+            source: .unstaged,
+            reverse: false,
+            failureMessage: "Couldn\u{27}t stage this line. Try refreshing."
+        )
+    }
+
+    func unstageLine(filePath: String, lineSelection: GitPatchBuilder.LineSelection) {
+        applyLineSelection(
+            filePath: filePath,
+            globalHunkIndex: lineSelection.hunkIndex,
+            bodyLineIndex: lineSelection.bodyLineIndex,
+            source: .staged,
+            reverse: true,
+            failureMessage: "Couldn\u{27}t unstage this line. Try refreshing."
+        )
+    }
+
+    private func applyLineSelection(
+        filePath: String,
+        globalHunkIndex: Int,
+        bodyLineIndex: Int,
+        source: DiffDisplayRow.Source,
+        reverse: Bool,
+        failureMessage: String
+    ) {
+        guard let diff = diffCache.diff(for: filePath) else {
+            showStatus(failureMessage, isError: true)
+            return
+        }
+        let rawPatch = source == .staged ? diff.rawStagedPatch : diff.rawUnstagedPatch
+        guard !rawPatch.isEmpty else {
+            showStatus(failureMessage, isError: true)
+            return
+        }
+        let relativeIndex = relativeHunkIndex(from: globalHunkIndex, in: diff, source: source)
+        let selection = GitPatchBuilder.LineSelection(
+            hunkIndex: relativeIndex,
+            bodyLineIndex: bodyLineIndex
+        )
+        guard let patch = GitPatchBuilder.buildPatch(from: rawPatch, selectingLines: [selection]) else {
+            showStatus(failureMessage, isError: true)
+            return
+        }
+        performGitOperation {
+            try await self.git.applyPatch(
+                repoPath: self.projectPath,
+                patch: patch,
+                cached: true,
+                reverse: reverse
+            )
+        }
+    }
+
+    private func relativeHunkIndex(
+        from globalIndex: Int,
+        in diff: DiffCache.LoadedDiff,
+        source: DiffDisplayRow.Source
+    ) -> Int {
+        var indexWithinSource = -1
+        var seen = Set<Int>()
+        for row in diff.rows where row.source == source && row.kind == .hunk {
+            if let idx = row.hunkIndex, seen.insert(idx).inserted {
+                indexWithinSource += 1
+                if idx == globalIndex { return indexWithinSource }
+            }
+        }
+        return max(indexWithinSource, 0)
     }
 
     func stageAll() {

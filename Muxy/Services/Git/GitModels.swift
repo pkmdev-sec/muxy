@@ -27,6 +27,12 @@ struct GitStatusFile: Identifiable, Hashable {
         return unstaged.contains(yStatus) || (xStatus == "?" && yStatus == "?")
     }
 
+    var isConflicted: Bool {
+        xStatus == "U" || yStatus == "U"
+            || (xStatus == "A" && yStatus == "A")
+            || (xStatus == "D" && yStatus == "D")
+    }
+
     var statusText: String {
         switch (xStatus, yStatus) {
         case ("A", _),
@@ -98,6 +104,12 @@ struct DiffDisplayRow: Identifiable {
         case collapsed
     }
 
+    enum Source {
+        case staged
+        case unstaged
+        case untracked
+    }
+
     let id = UUID()
     let kind: Kind
     let oldLineNumber: Int?
@@ -105,4 +117,26 @@ struct DiffDisplayRow: Identifiable {
     let oldText: String?
     let newText: String?
     let text: String
+    let hunkIndex: Int?
+    let source: Source?
+
+    init(
+        kind: Kind,
+        oldLineNumber: Int?,
+        newLineNumber: Int?,
+        oldText: String?,
+        newText: String?,
+        text: String,
+        hunkIndex: Int? = nil,
+        source: Source? = nil
+    ) {
+        self.kind = kind
+        self.oldLineNumber = oldLineNumber
+        self.newLineNumber = newLineNumber
+        self.oldText = oldText
+        self.newText = newText
+        self.text = text
+        self.hunkIndex = hunkIndex
+        self.source = source
+    }
 }

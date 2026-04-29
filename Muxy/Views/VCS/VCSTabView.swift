@@ -1547,15 +1547,32 @@ private struct SectionSplitLayout: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    @ViewBuilder
     private func expandedDiff(for file: GitStatusFile) -> some View {
-        DiffBodyView(
-            isLoading: state.diffCache.isLoading(file.path),
-            error: state.diffCache.error(for: file.path),
-            diff: state.diffCache.diff(for: file.path),
-            filePath: file.path,
-            mode: state.mode,
-            onLoadFull: { state.loadFullDiff(filePath: file.path) }
-        )
+        if file.isConflicted {
+            MergeConflictView(filePath: file.path, state: state)
+        } else {
+            DiffBodyView(
+                isLoading: state.diffCache.isLoading(file.path),
+                error: state.diffCache.error(for: file.path),
+                diff: state.diffCache.diff(for: file.path),
+                filePath: file.path,
+                mode: state.mode,
+                onLoadFull: { state.loadFullDiff(filePath: file.path) },
+                onStageHunk: { hunk in
+                    state.stageHunk(filePath: file.path, hunkIndex: hunk.hunkIndex)
+                },
+                onUnstageHunk: { hunk in
+                    state.unstageHunk(filePath: file.path, hunkIndex: hunk.hunkIndex)
+                },
+                onStageLine: { selection in
+                    state.stageLine(filePath: file.path, lineSelection: selection)
+                },
+                onUnstageLine: { selection in
+                    state.unstageLine(filePath: file.path, lineSelection: selection)
+                }
+            )
+        }
     }
 }
 

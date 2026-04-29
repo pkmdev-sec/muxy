@@ -393,6 +393,399 @@ window's shortcut interceptor installs a local `addLocalMonitorForEvents`
 handler for `[.otherMouseDown, .swipe]`, gated on the monitored window
 being key and identified as a Muxy main window.
 
+## Command Palette, Broadcast, Zoom & Reopen
+
+These are session-scope affordances layered on top of the existing workspace
+reducer without persisting state.
+
+- **Command Palette** (`⌘⇧P`) — `CommandPalette` runs a set of `PaletteCommandSource`
+  conformers: `ShortcutCommandSource` (every `ShortcutAction.allCases`),
+  `NavigationCommandSource` (project × worktree jumps), `ThemeCommandSource`,
+  `AICommandSource`, `FileContextCommandSource`, `SettingsCommandSource`.
+  `PaletteRecentsStore` keeps a 12-item LRU keyed by command id. UI reuses the
+  existing `PaletteOverlay` primitive.
+- **Broadcast Input** (`⌃⌘B` / `⌃⇧⌘B`) — `BroadcastGroupStore.shared` tracks an
+  unordered set of paneIDs. `GhosttyTerminalNSView.dispatchKey(_:)` is the single
+  chokepoint for `ghostty_surface_key` calls; `broadcastKeyIfNeeded(_:)` mirrors
+  to every other member of the active group via `TerminalViewRegistry`. Paste
+  and IME-inserted text fan out through `broadcastRawBytesIfNeeded(_:)`.
+  `performReplay` prevents infinite re-entry.
+- **Zoom Pane** (`⌘⇧Z`) — `AppState.zoomedAreaID` is a per-worktree map. When set,
+  `TerminalArea` renders a single `SplitNode.tabArea(area)` instead of the full
+  tree. Nothing persists; process liveness is unaffected (hidden panes continue
+  running).
+- **Reopen Closed Tab** (`⌘⇧T`) — `AppState.closedTabHistory` is a LIFO of
+  `ClosedTabRecord`, captured before any close path dispatches `.closeTab`.
+  `reopenLastClosedTab()` replays the matching create action (`createTabInDirectory`,
+  `createEditorTab`, or `createVCSTab`) and restores `customTitle` / `colorID` /
+  `isPinned`. Diff-viewer tabs are intentionally skipped (session-only per
+  existing policy). Records are purged when their project is removed.
+
+## Source Control Extensions
+
+On top of the existing VCS tab and PR flow:
+
+- **Hunk-level staging / unstaging** — `GitDiffParser` stamps `hunkIndex` and
+  `source` (`.staged` / `.unstaged`) on every `DiffDisplayRow`. `DiffSectionDivider`
+  shows a "Stage Hunk" / "Unstage Hunk" pill. `GitPatchBuilder.buildPatch(from:selectingHunkIndices:)`
+  produces a valid unified diff from the cached raw patch that `GitRepositoryService.applyPatch`
+  pipes to `git apply --cached` (with `--reverse` for unstage).
+- **Line-level staging** — engine only (UI follow-up). `GitPatchBuilder.LineSelection`
+  identifies a line by `(hunkIndex, bodyLineIndex)`. `buildPatch(from:selectingLines:)`
+  converts unselected `-` lines to context, drops unselected `+` lines, recomputes
+  `@@` header counts, and preserves `\ No newline at end of file` markers.
+- **Merge conflict resolution** — `GitConflictParser` walks a file's contents
+  (supports both standard and diff3 markers with `|||||||` base section) into
+  `GitConflictRegion` values. `GitRepositoryService.resolveConflictRegion`
+  rewrites the file atomically with the chosen resolution (`keepOurs` /
+  `keepTheirs` / `keepBoth` / `keepBothReversed` / `custom`) and auto-stages
+  the file when zero regions remain. `MergeConflictView` replaces the usual
+  diff view when `GitStatusFile.isConflicted` is true.
+
+## Project-Wide Search & Replace
+
+- **Find in Project** (`⌘⇧F`) — `ProjectSearchService.search(query:in:)`
+  uses `git grep --line-number --column -I --untracked --fixed-strings` in
+  repos; falls back to `grep -rIn` with a pruned directory list elsewhere.
+  Streams output through a `ResultsBox` that caps at 200 matches and terminates
+  the subprocess on overflow. `ProjectSearchOverlay` renders results; clicking
+  opens the file via `AppState.openFile(_:projectID:initialSearchNeedle:)` which
+  pre-fills the editor's search bar with the query so matches highlight
+  automatically.
+- **Project Replace** — chevron in the search overlay expands a Replace row.
+  `ProjectReplaceService.replace(query:replacement:in:)` groups results by
+  absolute path, rewrites each file atomically with literal replacement
+  (matching the search's `--fixed-strings` semantics), and reports
+  `filesChanged` / `occurrencesReplaced` / `failures`.
+
+## Shortcut Cheat Sheet
+
+`⌘/` opens `ShortcutCheatSheetOverlay`, a read-only view of every
+`ShortcutAction.allCases` joined with `KeyBindingStore.shared.combo(for:)`,
+grouped by `ShortcutAction.categories` and filterable live. Unbound actions
+show "Unbound" so users know to configure them in Settings. Automatically
+surfaced in the Command Palette via `ShortcutCommandSource`.
+
+
+## Agent Canvas
+
+The Agent Canvas is a first-class `.agentCanvas` tab kind that lets users
+visually wire panes together so outputs from one can drive inputs into
+another. It is the primary demo surface for Muxy's multi-agent story
+(the CXR ↔ DroidX workflow).
+
+### Data model
+
+`Muxy/Models/AgentCanvasState.swift` defines three @Observable @MainActor
+types:
+
+- `AgentCanvasState` — tab-kind payload with `id`, `projectPath`,
+  `name`, `nodes: [AgentCanvasNode]`, `wires: [AgentCanvasWire]`, plus
+  lookup helpers (`node(id:)`, `node(paneID:)`, `node(matchingAgentID:)`)
+  and mutators (`addNode`, `addWire` with dedupe by
+  `(source, target, kind)`, `removeNode` cascading wires,
+  `removeWire`).
+- `AgentCanvasNode` — a card on the canvas bound to an optional
+  `paneID` / `tabID` / `areaID`, with `label`, optional `agentID`, and a
+  `CGPoint` position.
+- `AgentCanvasWire` — a typed directed edge between two nodes.
+  `AgentCanvasWireKind` enum: `.promptRelay | .keystrokeBroadcast |
+  .fileWatch | .mirror`.
+
+### Runtime: `PaneWireBus`
+
+`Muxy/Services/PaneWireBus.swift` is the @MainActor @Observable
+singleton that owns live wire subscriptions. For each activated wire, it
+subscribes to the source pane via `TerminalOutputBus` and dispatches
+bytes according to the wire kind. Subscriptions unregister cleanly on
+`deactivate(wireID:)` / `deactivateAll(canvasID:)` / `deactivateAll()`.
+
+### Prompt Relay (live today)
+
+`Muxy/Services/PromptRelayMatcher.swift` parses
+`<muxy:ask target="X" reply="Y">body</muxy:ask>` markers out of a
+streaming terminal byte buffer (bounded 32 KB window, survives chunked
+ingests, multiple tags per payload). When a match fires, `PaneWireBus`
+looks up the target pane via `TerminalViewRegistry` and sends the body
+using the same `sendText + sendReturnKey` path used by PAWA. This is
+the "CXR emits a prompt, DroidX receives it" story — no Ghostty
+fork changes needed.
+
+### Mirror (gated on Ghostty fork)
+
+The `.mirror` wire kind is modeled in the data layer and renders its
+wire line dashed-green in the canvas view, but its dispatch path in
+`PaneWireBus` currently logs a debug stub. Landing it requires
+`ghostty_surface_inject_output` in the muxy-app/ghostty fork. The full
+PR description — including the three-file Zig patch, a test stub,
+risks (OSC 52 leakage, resize/reflow, alt-screen), and the Muxy-side
+follow-up checklist — is documented at
+`docs/ghostty-inject-output-pr.md`.
+
+### View: `AgentCanvasTabView`
+
+`Muxy/Views/Workspace/AgentCanvasTabView.swift` renders the nodes as
+draggable rounded cards with agent/terminal icons, and wires as
+quadratic Bezier curves color-coded per kind. Toolbar actions: "Add
+current pane" (captures the focused terminal into a new node), "Wire:
+pick source" then tap target (creates a `.promptRelay` wire and
+activates it), "Stop all wires". Long-press a card to select it; tap a
+selected card again to start a wire from it.
+
+### Tab-kind integration
+
+`.agentCanvas` threads through the usual 10 sites —
+`TerminalTab.Kind` / `.Content` / title / init / `init(restoring:)` /
+`snapshot()`; `TerminalTabSnapshot.agentCanvasName`;
+`AppState.Action.createAgentCanvasTab` + convenience `createAgentCanvasTab(projectID:name:)`;
+`WorkspaceReducer` routing; `TabReducer.createAgentCanvasTab`;
+`TabArea.createAgentCanvasTab` (single-canvas-per-area);
+`TabAreaView` view routing; `TabStrip` accessibility label;
+`DTOConversions` (currently maps to `.terminal` on the wire);
+`WorkspaceTemplateStore` fallback; `AppState.captureClosedTab`
+guard-and-return.
+
+### Palette
+
+`AgentCanvasCommandSource`
+(`Muxy/Services/CommandPaletteSources.swift`) exposes "Open Agent
+Canvas" (creates a tab in the active project) and "Stop All Agent
+Canvas Wires" (emergency-off for every live relay).
+
+
+## Test Runner Tab Kind
+
+Muxy ships a first-class `.testRunner` tab kind that parses `swift test` /
+`xcodebuild test` output into a structured tree with pass/fail/skipped
+status icons, durations, and click-to-open-failure-file semantics.
+
+`TestRunResult.swift` (`Muxy/Models/TestRunResult.swift`) defines
+`TestStatus`, `TestFailure` (with stable `id` via `TestFailureIDHasher` so
+SwiftUI diffing stays correct across process restarts), `TestNode` (nested
+tree), and `TestRunSummary`. The `TestNode.summary()` helper walks leaves
+to count pass/fail/skipped and sum durations.
+
+`TestRunnerTabState.swift` (`Muxy/Models/TestRunnerTabState.swift`) is
+`@MainActor @Observable final class`: `projectPath`, `commandLine`,
+`framework` (`swiftTesting | xctest | unknown`), `root: TestNode`,
+`isRunning`, run timestamps, a 500-line `recentOutputLines` tail, and
+`lastExitStatus`.
+
+Parsers live in `Muxy/Services/Testing/`:
+- `TestOutputParser.swift` — protocol with `ingest(line:)`,
+  `ingest(data:)` (default impl splits on `\n`), `root`, `summary`.
+- `SwiftTestingParser.swift` — parses both the emoji-marker and
+  ASCII-marker variants emitted by `swift test`. Tracks a stack of nested
+  suites, captures `"after X seconds"` durations, attaches
+  `filepath:line:col:` failure markers to the most recent failing test.
+- `XCTestParser.swift` — regex pipeline for traditional
+  `Test Case '-[Class method]' passed/failed` output plus
+  `/path.swift:LINE: error:` failure attachments.
+- `TestFrameworkDetector.swift` — heuristic for SPM
+  (`Package.swift` → `swiftTesting` + `"swift test"`) vs Xcode
+  (`.xcodeproj` / `.xcworkspace` → `xctest` + `"xcodebuild test"`)
+  vs `.unknown`.
+- `TestRunnerService.swift` — `@MainActor` singleton that spawns a
+  `Process`, pipes stdout/stderr through an `AsyncStream<String>`, feeds
+  the chosen parser, updates `TestRunnerTabState.root` + output tail on
+  the main actor.
+
+`TestRunnerTabView.swift` (`Muxy/Views/Workspace/TestRunnerTabView.swift`)
+splits the pane horizontally: a left tree with indented suites and leaf
+tests using status-tinted SF symbols; a right-hand 340-pt raw output tail
+with auto-scroll. Header shows the command line, an animated
+"running / \(pass)✓ \(fail)✗ \(total) total" summary, and a
+Run/Stop button. Clicking a failing leaf dispatches to the existing
+`AppDelegate.handleOpenProjectPath(_:)` path so failures land in the
+editor.
+
+`TestRunnerCommandSource`
+(`Muxy/Services/CommandPaletteSources.swift`) adds "Run Tests in Project"
+(auto-detects framework) and "Run Swift Tests" (forces `swift test`) to
+the palette. The tab kind also threads through `TerminalTab.Kind` /
+`TerminalTabSnapshot` / `WorkspaceReducer` / `TabReducer` /
+`AppState.Action.createTestRunnerTab` / `TabArea.createTestRunnerTab` /
+`TabStrip` accessibility / `ClosedTabRecord` — the full "new tab
+kind" surface (10 call sites), extending the pattern established for
+terminal / vcs / editor / diffViewer.
+
+
+## Workflow Recorder
+
+Muxy can record any sequence of Command Palette actions as a replayable
+macro. Pressing the "Record Workflow" shortcut (`⌘⌥R`) starts a
+recording; every palette command the user subsequently invokes is captured
+by its stable `id` string. Pressing the shortcut again stops the recording
+and prompts for a name, which is persisted.
+
+`WorkflowMacro` (`Muxy/Models/WorkflowMacro.swift`) models a saved macro
+as `{ id, name, symbol, steps: [WorkflowMacroStep], createdAt, updatedAt }`.
+Each step stores only `commandID` and `recordedAt`, which keeps macros
+portable across palette refactors provided command IDs remain stable.
+
+`WorkflowRecorder` (`Muxy/Services/WorkflowRecorder.swift`) is the
+`@MainActor @Observable` state machine. The palette's `onSelect` handler
+(`MainWindow.commandPaletteOverlay`) calls `recordStep(commandID:)` before
+dispatching the command, so recording is implicit: users just invoke
+commands normally.
+
+`WorkflowMacroStore` (`Muxy/Services/WorkflowMacroStore.swift`) persists
+macros to `~/Library/Application Support/Muxy/workflows.json` via
+`CodableFileStore` with a debounced save task.
+
+`WorkflowPlayer` (`Muxy/Services/WorkflowPlayer.swift`) resolves each
+step's `commandID` against the CURRENT palette's `sources.flatMap
+{ $0.commands() }` snapshot, invokes each matched command's `run` closure,
+and waits 120 ms between steps so async side effects settle. Missing
+commands are skipped gracefully — the player reports how many of the
+N recorded steps actually executed.
+
+`WorkflowMacroCommandSource` (`Muxy/Services/CommandPaletteSources.swift`)
+adds three kinds of palette entries: "Record Workflow…" / "Stop
+Recording Workflow", one "Run Workflow → <name>" per saved macro,
+and one "Delete Workflow → <name>" per saved macro. The run-entry's
+`paletteProvider: @MainActor () -> CommandPalette` closure re-snapshots
+the palette at execution time so a macro built from today's commands
+replays correctly tomorrow.
+
+`WorkflowRecordingBanner`
+(`Muxy/Views/Components/WorkflowRecordingBanner.swift`) renders a red
+pulsing pill above the window while `WorkflowRecorder.shared.isRecording`,
+with a live step count and an embedded "⏹ Save" button that posts
+`.toggleWorkflowRecording`. `WorkflowSavePrompt`
+(`Muxy/Views/Components/WorkflowSavePrompt.swift`) is the modal that
+captures the final name on stop.
+
+
+## Time-Travel Scrollback
+
+Every terminal pane's raw byte stream flows through a central dispatcher
+(`TerminalOutputBus`, `Muxy/Services/TerminalOutputBus.swift`) that owns the
+single Ghostty `ghostty_surface_set_data_callback` slot per surface. Any
+subsystem that wants to observe a pane's output subscribes via
+`bus.subscribe(paneID:handler:)` — this replaces the earlier one-owner
+model where `RemoteTerminalStreamer` held the callback exclusively. The bus
+emits `(Data, seq: UInt64)` to each subscriber so downstream clients can
+resume / dedupe / export at byte precision.
+
+Current subscribers:
+- `RemoteTerminalStreamer` — forwards bytes over WebSocket to remote
+  clients as `TerminalOutputEventDTO(paneID:bytes:seq:)` (the `seq` field
+  added in the forward-compat pass now carries real data).
+- `TerminalScrollbackStore` (`Muxy/Services/TerminalScrollbackStore.swift`)
+  — keeps a 4 MB per-pane `TerminalRingBuffer` and a flat list of
+  `TerminalScrollbackCheckpoint`s. Checkpoints capture `(paneID, projectID,
+  label, seq, createdAt)` so `bytesSince`/`bytesBetween` can reach back into
+  the ring buffer without ever scanning the live emulator state.
+
+Two shortcuts:
+- `⌘⇧M` (`ShortcutAction.addScrollbackCheckpoint`) opens
+  `ScrollbackCheckpointPrompt` and drops a named checkpoint on the focused
+  pane at the current bus seq.
+- `⌘⇧H` (`ShortcutAction.showScrollbackHistory`) opens
+  `ScrollbackHistoryOverlay`, grouped by project, with filter, jump-to-pane,
+  and "Export range" (writes the byte slice between two selected
+  checkpoints to a file via `NSSavePanel`).
+
+`ScrollbackCommandSource` (`Muxy/Services/CommandPaletteSources.swift`) adds
+palette entries: "Drop Scrollback Checkpoint…", "Show Scrollback
+History", "Clear Checkpoints in Current Pane", and one "Jump to
+checkpoint → <label>" per active checkpoint.
+
+
+## AI Agent Session Store & Agent Inbox
+
+Muxy maintains a structured, cross-project view of every AI agent instance
+that is active in the app. The store is fed by two upstream sources and
+surfaced through a palette overlay.
+
+`AIAgentSession` (`Muxy/Models/AIAgentSession.swift`) is the in-memory entity:
+`id`, `providerID`, `label`, `projectID`, `worktreeID`, `worktreePath`,
+optional `paneID`/`tabID`/`areaID`, `status` (idle | thinking | awaitingInput
+| error | done), optional `currentTask`, `lastActivity`, and `origin`
+(`.workbench` | `.notification` | `.manual`).
+
+`AIAgentSessionStore` (`Muxy/Services/AIAgentSessionStore.swift`) is an
+`@Observable @MainActor` singleton mirroring the `AIUsageService` pattern.
+Upserts are keyed by `(projectID, providerID, tabID)` so that re-registering
+an agent updates its status rather than duplicating it. The
+`AgentSessionRegistration` struct collects registration params into a single
+value so the `register(_:)` method stays under the 5-parameter limit.
+
+`ingestNotification(_:)` is called synchronously from
+`NotificationStore.insertIfNotFocused`, so every existing AI provider (Claude
+Code, Codex, OpenCode, Amp, Copilot, Kimi, MiniMax, Factory, Z.AI, plus any
+OSC-9 emitter) automatically populates a session. `AIAgentStatusInference`
+maps notification title+body keywords to `AIAgentStatus` without touching
+the provider-specific parsers. `AIAgentTaskExtractor` pulls a first-line
+summary capped at 140 chars.
+
+`AgentWorkbenchService.execute` (PAWA) also calls `register(_:)` directly
+when it spawns worktrees, so workbench-launched agents are visible in the
+Inbox before their first notification fires.
+
+`AgentInboxOverlay` (`Muxy/Views/Components/AgentInboxOverlay.swift`) is a
+`⌘⇧A` modal palette grouped by project. Rows show a traffic-light status
+dot (idle→muted, thinking→blue, awaitingInput→yellow,
+error→red, done→green), label, worktree path tail, status,
+optional task preview, and a relative timestamp. Clicking a row routes
+through `AIAgentSessionStore.navigate(to:appState:)` which dispatches
+`selectProject` (cross-project case), `focusArea`, and `selectTab` in
+order.
+
+`AgentInboxCommandSource` (`Muxy/Services/CommandPaletteSources.swift`)
+exposes three kinds of palette commands: "Show Agent Inbox", "Clear
+Completed Agents", and one "Jump to Agent → <label>" per active
+session with an icon that reflects current status.
+
+`ShortcutAction.showAgentInbox` + `Notification.Name.showAgentInbox` +
+`ShortcutActionDispatcher` give the overlay a first-class keyboard entry
+point that surfaces in the shortcut cheat sheet under the "App" category.
+
+
+## Per-Agent Worktree Automation
+
+Muxy reads an optional `agents` list from `.muxy/worktree.json` and exposes
+Command Palette entries to spin up each agent in its own isolated git worktree.
+
+```
+{
+    "agents": [
+        {
+            "id": "cxr",
+            "label": "CXR",
+            "branchPrefix": "feat-cxr",
+            "launchCommand": "cxr"
+        },
+        {
+            "id": "droidx",
+            "label": "DroidX",
+            "branchPrefix": "feat-droidx",
+            "launchCommand": "droidx --repo ."
+        }
+    ]
+}
+```
+
+`AgentDefinition` (`Muxy/Models/AgentDefinition.swift`) models a single entry.
+`WorktreeConfig` decoder tolerates configs that omit the field. The palette
+source `AgentWorkbenchCommandSource` (`Muxy/Services/CommandPaletteSources.swift`)
+surfaces one "Start Agent → <Label>" entry per agent plus an aggregate
+"Start Agent Workbench → All Agents" command.
+
+`AgentWorkbenchService` (`Muxy/Services/AgentWorkbenchService.swift`) has two
+halves: a pure `buildPlan` that derives branch names (`{prefix}-{yyyyMMdd-HHmm}`,
+suffix-bumped on collision) and sibling worktree paths; and an async `execute`
+that adds each worktree via `GitWorktreeService.addWorktree`, registers it in
+`WorktreeStore`, opens a terminal tab in the new worktree, and sends the
+agent's launch command once the pane is live.
+
+Reuses the existing worktree lifecycle (`WorktreeStore`, `GitWorktreeService`,
+`WorktreeSetupRunner`, `.muxy/worktree.json`), so agents inherit FSEvents
+watching, diff cache scoping, `WorktreeKey` workspace isolation, and palette
+jump-to-worktree commands without additional code.
+
+
 ## CLI / URL Scheme Entry Points
 
 External callers can open a project in Muxy through three coordinated paths,

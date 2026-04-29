@@ -59,9 +59,9 @@ struct MuxyApp: App {
                         )
                     }
                     appDelegate.flushPendingOpens()
-                    NotificationSocketServer.shared.openProjectHandler = { [appDelegate] path in
+                    NotificationSocketServer.shared.openProjectHandler = { path in
                         Task { @MainActor in
-                            appDelegate.handleOpenProjectPath(path)
+                            (NSApp.delegate as? AppDelegate)?.handleOpenProjectPath(path)
                         }
                     }
                     MobileServerService.shared.configure { server in

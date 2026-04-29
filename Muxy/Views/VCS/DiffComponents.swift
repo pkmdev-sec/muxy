@@ -4,6 +4,9 @@ import SwiftUI
 struct DiffSectionDivider: View {
     let text: String
     var showsTopBorder: Bool = true
+    var hunk: DiffHunkReference? = nil
+    var onStageHunk: ((DiffHunkReference) -> Void)? = nil
+    var onUnstageHunk: ((DiffHunkReference) -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 0) {
@@ -14,6 +17,10 @@ struct DiffSectionDivider: View {
                 .truncationMode(.tail)
                 .padding(.leading, 10)
             Spacer(minLength: 8)
+            if let hunk {
+                actionButton(for: hunk)
+                    .padding(.trailing, 8)
+            }
         }
         .frame(height: 28)
         .frame(maxWidth: .infinity)
@@ -30,6 +37,52 @@ struct DiffSectionDivider: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Diff section: \(text)")
+    }
+
+    @ViewBuilder
+    private func actionButton(for hunk: DiffHunkReference) -> some View {
+        switch hunk.source {
+        case .unstaged:
+            if let onStageHunk {
+                DiffHunkActionButton(label: "Stage Hunk", symbol: "plus.square") {
+                    onStageHunk(hunk)
+                }
+            }
+        case .staged:
+            if let onUnstageHunk {
+                DiffHunkActionButton(label: "Unstage Hunk", symbol: "minus.square") {
+                    onUnstageHunk(hunk)
+                }
+            }
+        case .untracked:
+            EmptyView()
+        }
+    }
+}
+
+private struct DiffHunkActionButton: View {
+    let label: String
+    let symbol: String
+    let action: () -> Void
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: symbol)
+                    .font(.system(size: 10, weight: .medium))
+                Text(label)
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .foregroundStyle(hovered ? MuxyTheme.accent : MuxyTheme.fgMuted)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(hovered ? MuxyTheme.surface : .clear, in: Capsule())
+            .overlay(Capsule().strokeBorder(MuxyTheme.border, lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 }
+        .accessibilityLabel(label)
     }
 }
 

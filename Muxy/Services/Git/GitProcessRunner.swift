@@ -41,7 +41,8 @@ enum GitProcessRunner {
     static func runGit(
         repoPath: String,
         arguments: [String],
-        lineLimit: Int? = nil
+        lineLimit: Int? = nil,
+        stdin: Data? = nil
     ) async throws -> GitProcessResult {
         let fullArgs = ["git", "-C", repoPath] + arguments
         return try await dispatch {
@@ -49,7 +50,7 @@ enum GitProcessRunner {
                 executable: "/usr/bin/env",
                 arguments: fullArgs,
                 workingDirectory: nil,
-                lineLimit: lineLimit,
+                io: ProcessIO(lineLimit: lineLimit, stdin: stdin),
                 signpostName: "git"
             )
         }
@@ -65,7 +66,7 @@ enum GitProcessRunner {
                 executable: executable,
                 arguments: arguments,
                 workingDirectory: workingDirectory,
-                lineLimit: nil,
+                io: ProcessIO(lineLimit: nil, stdin: nil),
                 signpostName: "command"
             )
         }
@@ -106,13 +107,20 @@ enum GitProcessRunner {
         }
     }
 
+    struct ProcessIO {
+        let lineLimit: Int?
+        let stdin: Data?
+    }
+
     private static func runProcessSync(
         executable: String,
         arguments: [String],
         workingDirectory: String?,
-        lineLimit: Int?,
+        io: ProcessIO,
         signpostName: StaticString
     ) throws -> GitProcessResult {
+        let lineLimit = io.lineLimit
+        let stdin = io.stdin
         let signpostID = GitSignpost.begin(signpostName, arguments.prefix(3).joined(separator: " "))
         defer { GitSignpost.end(signpostName, signpostID) }
 
@@ -125,13 +133,22 @@ enum GitProcessRunner {
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
+        let stdinPipe: Pipe? = stdin == nil ? nil : Pipe()
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
+        if let stdinPipe {
+            process.standardInput = stdinPipe
+        }
 
         do {
             try process.run()
         } catch {
             throw GitProcessError.launchFailed(error.localizedDescription)
+        }
+
+        if let stdinPipe, let stdin {
+            stdinPipe.fileHandleForWriting.write(stdin)
+            try? stdinPipe.fileHandleForWriting.close()
         }
 
         let stdoutData: Data = if let lineLimit {

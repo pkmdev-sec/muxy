@@ -8,6 +8,10 @@ struct DiffBodyView: View {
     let mode: VCSTabState.ViewMode
     let onLoadFull: (() -> Void)?
     var suppressLeadingTopBorder: Bool = false
+    var onStageHunk: ((DiffHunkReference) -> Void)? = nil
+    var onUnstageHunk: ((DiffHunkReference) -> Void)? = nil
+    var onStageLine: ((GitPatchBuilder.LineSelection) -> Void)? = nil
+    var onUnstageLine: ((GitPatchBuilder.LineSelection) -> Void)? = nil
 
     var body: some View {
         Group {
@@ -33,13 +37,21 @@ struct DiffBodyView: View {
                         UnifiedDiffView(
                             rows: diff.rows,
                             filePath: filePath,
-                            suppressLeadingTopBorder: suppressLeadingTopBorder && !diff.truncated
+                            suppressLeadingTopBorder: suppressLeadingTopBorder && !diff.truncated,
+                            onStageHunk: onStageHunk,
+                            onUnstageHunk: onUnstageHunk,
+                            onStageLine: onStageLine,
+                            onUnstageLine: onUnstageLine
                         )
                     case .split:
                         SplitDiffView(
                             rows: diff.rows,
                             filePath: filePath,
-                            suppressLeadingTopBorder: suppressLeadingTopBorder && !diff.truncated
+                            suppressLeadingTopBorder: suppressLeadingTopBorder && !diff.truncated,
+                            onStageHunk: onStageHunk,
+                            onUnstageHunk: onUnstageHunk,
+                            onStageLine: onStageLine,
+                            onUnstageLine: onUnstageLine
                         )
                     }
                 }

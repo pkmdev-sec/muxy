@@ -53,7 +53,46 @@ enum TabReducer {
         area.createExternalEditorTab(filePath: filePath, command: command)
     }
 
-    static func createDiffViewerTab(
+    static func createTestRunnerTab(
+        projectID: UUID,
+        areaID: UUID?,
+        commandLine: String,
+        framework: TestRunnerTabState.Framework,
+        state: inout WorkspaceState
+    ) {
+        guard let key = WorkspaceReducerShared.activeKey(projectID: projectID, state: state),
+              let area = WorkspaceReducerShared.resolveArea(key: key, areaID: areaID, state: state)
+        else { return }
+        FocusReducer.focusArea(area.id, key: key, state: &state)
+        area.createTestRunnerTab(commandLine: commandLine, framework: framework)
+    }
+
+    static func createGitLogTab(
+        projectID: UUID,
+        areaID: UUID?,
+        state: inout WorkspaceState
+    ) {
+        guard let key = WorkspaceReducerShared.activeKey(projectID: projectID, state: state),
+              let area = WorkspaceReducerShared.resolveArea(key: key, areaID: areaID, state: state)
+        else { return }
+        FocusReducer.focusArea(area.id, key: key, state: &state)
+        area.createGitLogTab()
+    }
+
+    static func createAgentCanvasTab(
+        projectID: UUID,
+        areaID: UUID?,
+        name: String,
+        state: inout WorkspaceState
+    ) {
+        guard let key = WorkspaceReducerShared.activeKey(projectID: projectID, state: state),
+              let area = WorkspaceReducerShared.resolveArea(key: key, areaID: areaID, state: state)
+        else { return }
+        FocusReducer.focusArea(area.id, key: key, state: &state)
+        area.createAgentCanvasTab(name: name)
+    }
+
+        static func createDiffViewerTab(
         projectID: UUID,
         areaID: UUID?,
         request: AppState.DiffViewerRequest,

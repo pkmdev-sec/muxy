@@ -9,6 +9,7 @@ struct PaneTabStrip: View {
         let isPinned: Bool
         let hasCustomTitle: Bool
         let colorID: String?
+        let paneID: UUID?
     }
 
     let areaID: UUID
@@ -41,7 +42,8 @@ struct PaneTabStrip: View {
                 kind: tab.kind,
                 isPinned: tab.isPinned,
                 hasCustomTitle: tab.customTitle != nil,
-                colorID: tab.colorID
+                colorID: tab.colorID,
+                paneID: tab.content.pane?.id
             )
         }
     }
@@ -120,7 +122,8 @@ struct PaneTabStrip: View {
                     onCreateRight: { onCreateTabAdjacent(tab.id, .right) },
                     onTogglePin: { onTogglePin(tab.id) },
                     onSetCustomTitle: { onSetCustomTitle(tab.id, $0) },
-                    onSetColorID: { onSetColorID(tab.id, $0) }
+                    onSetColorID: { onSetColorID(tab.id, $0) },
+                    hasAIActivity: NotificationStore.shared.hasRecentAIActivity(tabID: tab.id)
                 )
                 .frame(width: perTabWidth)
                 .background {
@@ -283,6 +286,7 @@ private struct TabCell: View {
     let onTogglePin: () -> Void
     let onSetCustomTitle: (String?) -> Void
     let onSetColorID: (String?) -> Void
+    var hasAIActivity: Bool = false
     @State private var hovered = false
     @State private var isRenaming = false
     @State private var renameText = ""
@@ -332,11 +336,25 @@ private struct TabCell: View {
                     .foregroundStyle(active ? MuxyTheme.fg : MuxyTheme.fgMuted)
                     .opacity(titleHidden && hovered && !tab.isPinned ? 0 : 1)
                     .overlay(alignment: .topTrailing) {
-                        if hasUnread, !active {
+                        if hasAIActivity, !active {
+                            AITabActivityPulse()
+                                .offset(x: 3, y: -3)
+                        } else if hasUnread, !active {
                             Circle()
                                 .fill(MuxyTheme.accent)
                                 .frame(width: 6, height: 6)
                                 .offset(x: 3, y: -3)
+                        }
+                    }
+                    .overlay(alignment: .bottomLeading) {
+                        if let paneID = tab.paneID,
+                           BroadcastGroupStore.shared.isBroadcasting(paneID)
+                        {
+                            Image(systemName: "dot.radiowaves.left.and.right")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(MuxyTheme.accent)
+                                .offset(x: -4, y: 4)
+                                .accessibilityLabel("Broadcasting")
                         }
                     }
 
@@ -425,6 +443,20 @@ private struct TabCell: View {
                 if tab.colorID != nil {
                     Button("Reset Tab Color") { onSetColorID(nil) }
                 }
+                if let paneID = tab.paneID, tab.kind == .terminal {
+                    Divider()
+                    Button(BroadcastGroupStore.shared.isBroadcasting(paneID)
+                        ? "Stop Broadcasting to This Pane"
+                        : "Broadcast Input to This Pane")
+                    {
+                        BroadcastGroupStore.shared.toggle(paneID)
+                    }
+                    if BroadcastGroupStore.shared.isActive {
+                        Button("Stop All Broadcasts") {
+                            BroadcastGroupStore.shared.clear()
+                        }
+                    }
+                }
                 Divider()
                 Button(tab.isPinned ? "Unpin Tab" : "Pin Tab") {
                     onTogglePin()
@@ -472,6 +504,9 @@ private struct TabCell: View {
         case .vcs: label += ", Source Control"
         case .editor: label += ", Editor"
         case .diffViewer: label += ", Diff Viewer"
+        case .testRunner: label += ", Test Runner"
+        case .agentCanvas: label += ", Agent Canvas"
+        case .gitLog: label += ", Commit Graph"
         }
         if tab.isPinned { label += ", Pinned" }
         if hasUnread { label += ", Unread" }
@@ -497,5 +532,28 @@ private struct TabCell: View {
             Image(systemName: "terminal")
                 .font(.system(size: 12, weight: .semibold))
         }
+    }
+}
+
+
+private struct AITabActivityPulse: View {
+    @State private var pulsing = false
+
+    var body: some View {
+        Circle()
+            .fill(MuxyTheme.accent)
+            .frame(width: 7, height: 7)
+            .overlay(
+                Circle()
+                    .stroke(MuxyTheme.accent, lineWidth: 1)
+                    .scaleEffect(pulsing ? 2.2 : 1.0)
+                    .opacity(pulsing ? 0 : 0.6)
+            )
+            .onAppear {
+                withAnimation(.easeOut(duration: 1.2).repeatForever(autoreverses: false)) {
+                    pulsing = true
+                }
+            }
+            .accessibilityLabel("AI activity")
     }
 }

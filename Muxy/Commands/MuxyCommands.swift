@@ -71,6 +71,13 @@ struct MuxyCommands: Commands {
                 Label("Check for Updates...", systemImage: "arrow.triangle.2.circlepath")
             }
             .disabled(!updateService.canCheckForUpdates)
+
+            Divider()
+
+            Button("Keyboard Shortcuts") {
+                performShortcutAction(.showShortcutCheatSheet)
+            }
+            .shortcut(for: .showShortcutCheatSheet, store: keyBindings)
         }
 
         CommandGroup(replacing: .pasteboard) {
@@ -90,6 +97,12 @@ struct MuxyCommands: Commands {
                 performShortcutAction(.findInTerminal)
             }
             .shortcut(for: .findInTerminal, store: keyBindings)
+
+            Button("Find in Project") {
+                guard isMainWindowFocused else { return }
+                performShortcutAction(.projectSearch)
+            }
+            .shortcut(for: .projectSearch, store: keyBindings)
         }
 
         CommandGroup(replacing: .newItem) {
@@ -109,6 +122,12 @@ struct MuxyCommands: Commands {
                 performShortcutAction(.openVCSTab)
             }
             .shortcut(for: .openVCSTab, store: keyBindings)
+
+            Button("Command Palette") {
+                guard isMainWindowFocused else { return }
+                performShortcutAction(.toggleCommandPalette)
+            }
+            .shortcut(for: .toggleCommandPalette, store: keyBindings)
 
             Button("Quick Open") {
                 guard isMainWindowFocused else { return }
@@ -132,6 +151,12 @@ struct MuxyCommands: Commands {
                 performShortcutAction(.closeTab)
             }
             .shortcut(for: .closeTab, store: keyBindings)
+
+            Button("Reopen Closed Tab") {
+                guard isMainWindowFocused else { return }
+                performShortcutAction(.reopenClosedTab)
+            }
+            .shortcut(for: .reopenClosedTab, store: keyBindings)
 
             Divider()
 
@@ -190,6 +215,26 @@ struct MuxyCommands: Commands {
                 performShortcutAction(.focusPaneDown)
             }
             .shortcut(for: .focusPaneDown, store: keyBindings)
+
+            Divider()
+
+            Button("Broadcast Input to Focused Pane") {
+                guard isMainWindowFocused else { return }
+                performShortcutAction(.toggleBroadcastPane)
+            }
+            .shortcut(for: .toggleBroadcastPane, store: keyBindings)
+
+            Button("Stop All Broadcasts") {
+                guard isMainWindowFocused else { return }
+                performShortcutAction(.clearAllBroadcasts)
+            }
+            .shortcut(for: .clearAllBroadcasts, store: keyBindings)
+
+            Button("Zoom Pane") {
+                guard isMainWindowFocused else { return }
+                performShortcutAction(.toggleZoomPane)
+            }
+            .shortcut(for: .toggleZoomPane, store: keyBindings)
         }
 
         CommandGroup(after: .windowList) {

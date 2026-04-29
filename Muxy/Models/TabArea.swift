@@ -75,7 +75,39 @@ final class TabArea: Identifiable {
         insertTab(TerminalTab(editorState: EditorTabState(projectPath: projectPath, filePath: filePath)))
     }
 
-    func createDiffViewerTab(vcs: VCSTabState, filePath: String, isStaged: Bool) {
+    func createTestRunnerTab(commandLine: String, framework: TestRunnerTabState.Framework) {
+        if let existing = tabs.first(where: { $0.kind == .testRunner }) {
+            selectTab(existing.id)
+            return
+        }
+        let state = TestRunnerTabState(
+            projectPath: projectPath,
+            commandLine: commandLine,
+            framework: framework
+        )
+        insertTab(TerminalTab(testRunnerState: state))
+    }
+
+    func createGitLogTab() {
+        if let existing = tabs.first(where: { $0.kind == .gitLog }) {
+            selectTab(existing.id)
+            return
+        }
+        let state = GitLogTabState(projectPath: projectPath)
+        insertTab(TerminalTab(gitLogState: state))
+        state.load()
+    }
+
+        func createAgentCanvasTab(name: String) {
+        if let existing = tabs.first(where: { $0.kind == .agentCanvas }) {
+            selectTab(existing.id)
+            return
+        }
+        let state = AgentCanvasState(projectPath: projectPath, name: name)
+        insertTab(TerminalTab(agentCanvasState: state))
+    }
+
+        func createDiffViewerTab(vcs: VCSTabState, filePath: String, isStaged: Bool) {
         if let existing = tabs.first(where: { tab in
             guard let diff = tab.content.diffViewerState else { return false }
             return diff.filePath == filePath && diff.isStaged == isStaged

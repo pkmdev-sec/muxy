@@ -72,4 +72,14 @@ final class PaneOwnershipStore {
         }
         deviceNames.removeValue(forKey: clientID)
     }
+
+    func remove(paneID: UUID) {
+        let previous = owners.removeValue(forKey: paneID)
+        guard case let .remote(clientID, _) = previous else { return }
+        ownedPanesByClient[clientID]?.remove(paneID)
+        if ownedPanesByClient[clientID]?.isEmpty == true {
+            ownedPanesByClient.removeValue(forKey: clientID)
+        }
+        onOwnershipChanged?(paneID, .mac(deviceName: macDeviceName))
+    }
 }

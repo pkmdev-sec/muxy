@@ -143,6 +143,48 @@ struct ShortcutActionDispatcher {
             guard AIUsageSettingsStore.isUsageEnabled() else { return false }
             notificationCenter.post(name: .toggleAIUsage, object: nil)
             return true
+        case .toggleCommandPalette:
+            notificationCenter.post(name: .toggleCommandPalette, object: nil)
+            return true
+        case .reopenClosedTab:
+            guard !appState.closedTabHistory.isEmpty else { return false }
+            appState.reopenLastClosedTab()
+            return true
+        case .toggleBroadcastPane:
+            guard let projectID = appState.activeProjectID,
+                  let area = appState.focusedArea(for: projectID),
+                  let tabID = area.activeTabID,
+                  let tab = area.tabs.first(where: { $0.id == tabID }),
+                  let pane = tab.content.pane
+            else { return false }
+            BroadcastGroupStore.shared.toggle(pane.id)
+            return true
+        case .clearAllBroadcasts:
+            guard BroadcastGroupStore.shared.isActive else { return false }
+            BroadcastGroupStore.shared.clear()
+            return true
+        case .toggleZoomPane:
+            guard let projectID = appState.activeProjectID else { return false }
+            appState.toggleZoomedArea(projectID: projectID)
+            return true
+        case .projectSearch:
+            notificationCenter.post(name: .projectSearch, object: nil)
+            return true
+        case .showShortcutCheatSheet:
+            notificationCenter.post(name: .showShortcutCheatSheet, object: nil)
+            return true
+        case .showAgentInbox:
+            notificationCenter.post(name: .showAgentInbox, object: nil)
+            return true
+        case .addScrollbackCheckpoint:
+            notificationCenter.post(name: .addScrollbackCheckpoint, object: nil)
+            return true
+        case .showScrollbackHistory:
+            notificationCenter.post(name: .showScrollbackHistory, object: nil)
+            return true
+        case .toggleWorkflowRecording:
+            notificationCenter.post(name: .toggleWorkflowRecording, object: nil)
+            return true
         case .navigateBack:
             guard appState.navigation.canGoBack else { return false }
             appState.goBack()

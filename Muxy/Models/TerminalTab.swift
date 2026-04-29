@@ -8,6 +8,9 @@ final class TerminalTab: Identifiable {
         case vcs
         case editor
         case diffViewer
+        case testRunner
+        case agentCanvas
+        case gitLog
     }
 
     enum Content {
@@ -15,6 +18,9 @@ final class TerminalTab: Identifiable {
         case vcs(VCSTabState)
         case editor(EditorTabState)
         case diffViewer(DiffViewerTabState)
+        case testRunner(TestRunnerTabState)
+        case agentCanvas(AgentCanvasState)
+        case gitLog(GitLogTabState)
 
         var kind: Kind {
             switch self {
@@ -22,6 +28,9 @@ final class TerminalTab: Identifiable {
             case .vcs: .vcs
             case .editor: .editor
             case .diffViewer: .diffViewer
+            case .testRunner: .testRunner
+            case .agentCanvas: .agentCanvas
+            case .gitLog: .gitLog
             }
         }
 
@@ -45,12 +54,30 @@ final class TerminalTab: Identifiable {
             return state
         }
 
+        var testRunnerState: TestRunnerTabState? {
+            guard case let .testRunner(state) = self else { return nil }
+            return state
+        }
+
+        var agentCanvasState: AgentCanvasState? {
+            guard case let .agentCanvas(state) = self else { return nil }
+            return state
+        }
+
+        var gitLogState: GitLogTabState? {
+            guard case let .gitLog(state) = self else { return nil }
+            return state
+        }
+
         var projectPath: String {
             switch self {
             case let .terminal(pane): pane.projectPath
             case let .vcs(state): state.projectPath
             case let .editor(state): state.projectPath
             case let .diffViewer(state): state.projectPath
+            case let .testRunner(state): state.projectPath
+            case let .agentCanvas(state): state.projectPath
+            case let .gitLog(state): state.projectPath
             }
         }
     }
@@ -76,6 +103,12 @@ final class TerminalTab: Identifiable {
             return state.displayTitle
         case let .diffViewer(state):
             return state.displayTitle
+        case let .testRunner(state):
+            return state.displayTitle
+        case let .agentCanvas(state):
+            return state.displayTitle
+        case let .gitLog(state):
+            return state.displayTitle
         }
     }
 
@@ -95,6 +128,18 @@ final class TerminalTab: Identifiable {
         content = .diffViewer(diffViewerState)
     }
 
+    init(testRunnerState: TestRunnerTabState) {
+        content = .testRunner(testRunnerState)
+    }
+
+    init(agentCanvasState: AgentCanvasState) {
+        content = .agentCanvas(agentCanvasState)
+    }
+
+    init(gitLogState: GitLogTabState) {
+        content = .gitLog(gitLogState)
+    }
+
     init(restoring snapshot: TerminalTabSnapshot) {
         customTitle = snapshot.customTitle
         colorID = snapshot.colorID
@@ -112,6 +157,18 @@ final class TerminalTab: Identifiable {
             }
         case .diffViewer:
             content = .terminal(TerminalPaneState(projectPath: snapshot.projectPath, title: snapshot.paneTitle))
+        case .testRunner:
+            let commandLine = snapshot.testRunnerCommandLine ?? "swift test"
+            content = .testRunner(TestRunnerTabState(projectPath: snapshot.projectPath, commandLine: commandLine))
+        case .agentCanvas:
+            let name = snapshot.agentCanvasName ?? "Agent Canvas"
+            let canvas = AgentCanvasState(projectPath: snapshot.projectPath, name: name)
+            if let graph = snapshot.agentCanvasGraph {
+                canvas.restore(graph: graph)
+            }
+            content = .agentCanvas(canvas)
+        case .gitLog:
+            content = .gitLog(GitLogTabState(projectPath: snapshot.projectPath))
         }
     }
 
@@ -123,7 +180,10 @@ final class TerminalTab: Identifiable {
             isPinned: isPinned,
             projectPath: content.projectPath,
             paneTitle: content.pane?.title,
-            filePath: content.editorState?.filePath
+            filePath: content.editorState?.filePath,
+            testRunnerCommandLine: content.testRunnerState?.commandLine,
+            agentCanvasName: content.agentCanvasState?.name,
+            agentCanvasGraph: content.agentCanvasState?.serializeGraph()
         )
     }
 }

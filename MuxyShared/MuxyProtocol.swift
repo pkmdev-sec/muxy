@@ -1,5 +1,9 @@
 import Foundation
 
+public enum MuxyProtocol {
+    public static let currentVersion: Int = 1
+}
+
 public enum MuxyMessageType: String, Codable, Sendable {
     case request
     case response
@@ -10,11 +14,18 @@ public struct MuxyRequest: Codable, Sendable {
     public let id: String
     public let method: MuxyMethod
     public let params: MuxyParams?
+    public let protocolVersion: Int?
 
-    public init(id: String, method: MuxyMethod, params: MuxyParams? = nil) {
+    public init(
+        id: String,
+        method: MuxyMethod,
+        params: MuxyParams? = nil,
+        protocolVersion: Int? = MuxyProtocol.currentVersion
+    ) {
         self.id = id
         self.method = method
         self.params = params
+        self.protocolVersion = protocolVersion
     }
 }
 
@@ -22,21 +33,34 @@ public struct MuxyResponse: Codable, Sendable {
     public let id: String
     public let result: MuxyResult?
     public let error: MuxyError?
+    public let protocolVersion: Int?
 
-    public init(id: String, result: MuxyResult? = nil, error: MuxyError? = nil) {
+    public init(
+        id: String,
+        result: MuxyResult? = nil,
+        error: MuxyError? = nil,
+        protocolVersion: Int? = MuxyProtocol.currentVersion
+    ) {
         self.id = id
         self.result = result
         self.error = error
+        self.protocolVersion = protocolVersion
     }
 }
 
 public struct MuxyEvent: Codable, Sendable {
     public let event: MuxyEventKind
     public let data: MuxyEventData
+    public let protocolVersion: Int?
 
-    public init(event: MuxyEventKind, data: MuxyEventData) {
+    public init(
+        event: MuxyEventKind,
+        data: MuxyEventData,
+        protocolVersion: Int? = MuxyProtocol.currentVersion
+    ) {
         self.event = event
         self.data = data
+        self.protocolVersion = protocolVersion
     }
 }
 

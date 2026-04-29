@@ -138,14 +138,18 @@ final class GhosttyTerminalNSView: NSView {
         ghostty_surface_set_focus(surface, isFocused)
 
         if let paneID = TerminalViewRegistry.shared.paneID(for: self) {
-            RemoteTerminalStreamer.shared.attach(paneID: paneID, surface: surface)
+            TerminalOutputBus.shared.attach(paneID: paneID, surface: surface)
+            TerminalScrollbackStore.shared.ensureSubscribed(paneID: paneID)
+            RemoteTerminalStreamer.shared.attach(paneID: paneID)
         }
     }
 
     func destroySurface() {
         if let surface {
             if let paneID = TerminalViewRegistry.shared.paneID(for: self) {
-                RemoteTerminalStreamer.shared.detach(paneID: paneID, surface: surface)
+                RemoteTerminalStreamer.shared.detach(paneID: paneID)
+                TerminalScrollbackStore.shared.detach(paneID: paneID)
+                TerminalOutputBus.shared.detach(paneID: paneID, surface: surface)
             }
             ghostty_surface_free(surface)
         }
@@ -347,7 +351,7 @@ final class GhosttyTerminalNSView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
-        guard let surface else { super.keyDown(with: event)
+        guard surface != nil else { super.keyDown(with: event)
             return
         }
 
@@ -360,11 +364,11 @@ final class GhosttyTerminalNSView: NSView {
             let text = shortcutText(from: event)
             if text.isEmpty {
                 keyEvent.text = nil
-                _ = ghostty_surface_key(surface, keyEvent)
+                dispatchKey(keyEvent)
             } else {
                 text.withCString { ptr in
                     keyEvent.text = ptr
-                    _ = ghostty_surface_key(surface, keyEvent)
+                    dispatchKey(keyEvent)
                 }
             }
             return
@@ -374,7 +378,7 @@ final class GhosttyTerminalNSView: NSView {
             if isAppShortcut(event) { return }
             var keyEvent = buildKeyEvent(from: event, action: action)
             keyEvent.text = nil
-            _ = ghostty_surface_key(surface, keyEvent)
+            dispatchKey(keyEvent)
             return
         }
 
@@ -395,7 +399,7 @@ final class GhosttyTerminalNSView: NSView {
                 keyEvent.consumed_mods = commandWasCalled ? GHOSTTY_MODS_NONE : consumedModsFromFlags(flags)
                 text.withCString { ptr in
                     keyEvent.text = ptr
-                    _ = ghostty_surface_key(surface, keyEvent)
+                    dispatchKey(keyEvent)
                 }
             }
         } else {
@@ -407,12 +411,12 @@ final class GhosttyTerminalNSView: NSView {
             if !text.isEmpty, !keyEvent.composing {
                 text.withCString { ptr in
                     keyEvent.text = ptr
-                    _ = ghostty_surface_key(surface, keyEvent)
+                    dispatchKey(keyEvent)
                 }
             } else {
                 keyEvent.consumed_mods = GHOSTTY_MODS_NONE
                 keyEvent.text = nil
-                _ = ghostty_surface_key(surface, keyEvent)
+                dispatchKey(keyEvent)
             }
         }
     }
@@ -426,18 +430,18 @@ final class GhosttyTerminalNSView: NSView {
     }
 
     override func keyUp(with event: NSEvent) {
-        guard let surface else { return }
+        guard surface != nil else { return }
         var keyEvent = buildKeyEvent(from: event, action: GHOSTTY_ACTION_RELEASE)
         keyEvent.text = nil
-        _ = ghostty_surface_key(surface, keyEvent)
+        dispatchKey(keyEvent)
     }
 
     override func flagsChanged(with event: NSEvent) {
-        guard let surface else { return }
+        guard surface != nil else { return }
         if hasMarkedText() { return }
         var keyEvent = buildKeyEvent(from: event, action: isFlagPress(event) ? GHOSTTY_ACTION_PRESS : GHOSTTY_ACTION_RELEASE)
         keyEvent.text = nil
-        _ = ghostty_surface_key(surface, keyEvent)
+        dispatchKey(keyEvent)
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
@@ -457,7 +461,7 @@ final class GhosttyTerminalNSView: NSView {
         var keyEvent = buildKeyEvent(from: event, action: event.isARepeat ? GHOSTTY_ACTION_REPEAT : GHOSTTY_ACTION_PRESS)
         keyEvent.text = nil
         if ghostty_surface_key_is_binding(surface, keyEvent, nil) {
-            _ = ghostty_surface_key(surface, keyEvent)
+            dispatchKey(keyEvent)
             return true
         }
         return false
@@ -745,10 +749,48 @@ final class GhosttyTerminalNSView: NSView {
             guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
             ghostty_surface_send_input_raw(surface, base, UInt(bytes.count))
         }
+        broadcastRawBytesIfNeeded(bytes)
+    }
+
+    private func dispatchKey(_ keyEvent: ghostty_input_key_s) {
+        guard let surface else { return }
+        _ = ghostty_surface_key(surface, keyEvent)
+        broadcastKeyIfNeeded(keyEvent)
+    }
+
+    private func broadcastKeyIfNeeded(_ keyEvent: ghostty_input_key_s) {
+        guard let myPaneID = TerminalViewRegistry.shared.paneID(for: self) else { return }
+        let receivers = BroadcastGroupStore.shared.receivers(excluding: myPaneID)
+        guard !receivers.isEmpty else { return }
+        BroadcastGroupStore.shared.performReplay {
+            for targetID in receivers {
+                guard let view = TerminalViewRegistry.shared.existingView(for: targetID),
+                      let targetSurface = view.surface
+                else { continue }
+                _ = ghostty_surface_key(targetSurface, keyEvent)
+            }
+        }
+    }
+
+    private func broadcastRawBytesIfNeeded(_ bytes: Data) {
+        guard let myPaneID = TerminalViewRegistry.shared.paneID(for: self) else { return }
+        let receivers = BroadcastGroupStore.shared.receivers(excluding: myPaneID)
+        guard !receivers.isEmpty else { return }
+        BroadcastGroupStore.shared.performReplay {
+            for targetID in receivers {
+                guard let view = TerminalViewRegistry.shared.existingView(for: targetID),
+                      let targetSurface = view.surface
+                else { continue }
+                bytes.withUnsafeBytes { raw in
+                    guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
+                    ghostty_surface_send_input_raw(targetSurface, base, UInt(bytes.count))
+                }
+            }
+        }
     }
 
     func sendKeyPress(codepoint: UInt32, keycode: UInt32 = 0, mods: ghostty_input_mods_e = GHOSTTY_MODS_NONE) {
-        guard let surface else { return }
+        guard surface != nil else { return }
         var press = ghostty_input_key_s()
         press.action = GHOSTTY_ACTION_PRESS
         press.keycode = keycode
@@ -757,11 +799,11 @@ final class GhosttyTerminalNSView: NSView {
         press.composing = false
         press.text = nil
         press.unshifted_codepoint = codepoint
-        _ = ghostty_surface_key(surface, press)
+        dispatchKey(press)
 
         var release = press
         release.action = GHOSTTY_ACTION_RELEASE
-        _ = ghostty_surface_key(surface, release)
+        dispatchKey(release)
     }
 
     var hasLiveSurface: Bool {
@@ -824,7 +866,7 @@ extension GhosttyTerminalNSView: @preconcurrency NSTextInputClient {
 
         if currentKeyEvent != nil {
             keyTextAccumulator.append(text)
-        } else if let surface {
+        } else if surface != nil {
             text.withCString { ptr in
                 var keyEvent = ghostty_input_key_s()
                 keyEvent.action = GHOSTTY_ACTION_PRESS
@@ -833,7 +875,7 @@ extension GhosttyTerminalNSView: @preconcurrency NSTextInputClient {
                 keyEvent.consumed_mods = GHOSTTY_MODS_NONE
                 keyEvent.composing = false
                 keyEvent.text = ptr
-                _ = ghostty_surface_key(surface, keyEvent)
+                dispatchKey(keyEvent)
             }
         }
     }

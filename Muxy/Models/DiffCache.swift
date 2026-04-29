@@ -8,6 +8,24 @@ final class DiffCache {
         let additions: Int
         let deletions: Int
         let truncated: Bool
+        let rawStagedPatch: String
+        let rawUnstagedPatch: String
+
+        init(
+            rows: [DiffDisplayRow],
+            additions: Int,
+            deletions: Int,
+            truncated: Bool,
+            rawStagedPatch: String = "",
+            rawUnstagedPatch: String = ""
+        ) {
+            self.rows = rows
+            self.additions = additions
+            self.deletions = deletions
+            self.truncated = truncated
+            self.rawStagedPatch = rawStagedPatch
+            self.rawUnstagedPatch = rawUnstagedPatch
+        }
     }
 
     private(set) var diffsByPath: [String: LoadedDiff] = [:]

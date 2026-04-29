@@ -9,6 +9,7 @@ public enum DeviceAuthDecision: Sendable {
     case approved(deviceName: String)
     case unknown
     case denied
+    case timedOut
 }
 
 public enum MuxyRemoteServerError: LocalizedError {
@@ -677,6 +678,8 @@ public final class MuxyRemoteServer: @unchecked Sendable {
             return MuxyResponse(id: requestID, error: .unauthorized)
         case .denied:
             return MuxyResponse(id: requestID, error: .pairingDenied)
+        case .timedOut:
+            return MuxyResponse(id: requestID, error: .pairingTimeout)
         }
     }
 }

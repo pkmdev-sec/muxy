@@ -32,7 +32,7 @@ Run `scripts/checks.sh --fix` after every task.
 
 ### Core Components
 
-- **GhosttyService** (singleton) — Manages the single `ghostty_app_t` instance per process. Loads config from `~/.config/ghostty/config`, runs a 120fps tick timer, and handles clipboard callbacks.
+- **GhosttyService** (singleton) — Manages the single `ghostty_app_t` instance per process. Loads config from `~/.config/ghostty/config`, drives `ghostty_app_tick` on demand from libghostty's `wakeup_cb` (no standing tick timer), and handles clipboard callbacks.
 
 - **GhosttyTerminalNSView** — AppKit `NSView` that hosts a ghostty surface (`ghostty_surface_t`). Handles all keyboard/mouse input routing to libghostty and manages the Metal rendering layer. This is bridged into SwiftUI via `GhosttyTerminalRepresentable`.
 

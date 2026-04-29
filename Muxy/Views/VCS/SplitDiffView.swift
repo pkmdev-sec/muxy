@@ -4,6 +4,10 @@ struct SplitDiffView: View {
     let rows: [DiffDisplayRow]
     let filePath: String
     var suppressLeadingTopBorder: Bool = false
+    var onStageHunk: ((DiffHunkReference) -> Void)? = nil
+    var onUnstageHunk: ((DiffHunkReference) -> Void)? = nil
+    var onStageLine: ((GitPatchBuilder.LineSelection) -> Void)? = nil
+    var onUnstageLine: ((GitPatchBuilder.LineSelection) -> Void)? = nil
 
     private var chunks: [SplitDiffChunk] {
         buildSplitDiffChunks(from: rows)
@@ -17,10 +21,13 @@ struct SplitDiffView: View {
         LazyVStack(spacing: 0) {
             ForEach(Array(chunks.enumerated()), id: \.offset) { index, chunk in
                 switch chunk {
-                case let .divider(text):
+                case let .divider(text, hunk):
                     DiffSectionDivider(
                         text: text,
-                        showsTopBorder: !(index == 0 && suppressLeadingTopBorder)
+                        showsTopBorder: !(index == 0 && suppressLeadingTopBorder),
+                        hunk: hunk,
+                        onStageHunk: onStageHunk,
+                        onUnstageHunk: onUnstageHunk
                     )
                 case let .codeBlock(leftRows, rightRows):
                     splitCodeBlock(leftRows: leftRows, rightRows: rightRows)
@@ -39,8 +46,15 @@ struct SplitDiffView: View {
         let rightMeta = buildDiffMetadata(from: rightRows)
 
         return HStack(alignment: .top, spacing: 0) {
-            DiffGutterBridge(metadata: leftMeta, filePath: filePath, mode: .singleOld, columnWidth: numberColumnWidth)
-                .frame(width: numberColumnWidth + 1, height: height)
+            DiffGutterBridge(
+                metadata: leftMeta,
+                filePath: filePath,
+                mode: .singleOld,
+                columnWidth: numberColumnWidth,
+                onStageLine: onStageLine,
+                onUnstageLine: onUnstageLine
+            )
+            .frame(width: numberColumnWidth + 1, height: height)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 DiffContentBridge(
@@ -53,8 +67,15 @@ struct SplitDiffView: View {
 
             Rectangle().fill(MuxyTheme.border).frame(width: 1)
 
-            DiffGutterBridge(metadata: rightMeta, filePath: filePath, mode: .singleNew, columnWidth: numberColumnWidth)
-                .frame(width: numberColumnWidth + 1, height: height)
+            DiffGutterBridge(
+                metadata: rightMeta,
+                filePath: filePath,
+                mode: .singleNew,
+                columnWidth: numberColumnWidth,
+                onStageLine: onStageLine,
+                onUnstageLine: onUnstageLine
+            )
+            .frame(width: numberColumnWidth + 1, height: height)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 DiffContentBridge(
@@ -72,7 +93,7 @@ struct SplitDiffView: View {
 }
 
 enum SplitDiffChunk {
-    case divider(text: String)
+    case divider(text: String, hunk: DiffHunkReference?)
     case codeBlock(leftRows: [DiffDisplayRow], rightRows: [DiffDisplayRow])
 }
 
@@ -90,9 +111,19 @@ func buildSplitDiffChunks(from rows: [DiffDisplayRow]) -> [SplitDiffChunk] {
                 leftRows = []
                 rightRows = []
             }
-            let rawText = paired.left?.text ?? paired.right?.text ?? ""
+            let source = paired.left ?? paired.right
+            let rawText = source?.text ?? ""
             let label = paired.kind == .hunk ? hunkLabel(rawText) : rawText
-            chunks.append(.divider(text: label))
+            let hunkRef: DiffHunkReference?
+            if paired.kind == .hunk,
+               let idx = source?.hunkIndex,
+               let src = source?.source
+            {
+                hunkRef = DiffHunkReference(hunkIndex: idx, source: src)
+            } else {
+                hunkRef = nil
+            }
+            chunks.append(.divider(text: label, hunk: hunkRef))
         } else {
             leftRows.append(paired.left ?? emptyRow(kind: .context))
             rightRows.append(paired.right ?? emptyRow(kind: .context))

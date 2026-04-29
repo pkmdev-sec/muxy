@@ -3,8 +3,13 @@ import SwiftUI
 
 let diffLineHeight: CGFloat = 20
 
+struct DiffHunkReference: Equatable, Sendable {
+    let hunkIndex: Int
+    let source: DiffDisplayRow.Source
+}
+
 enum DiffChunk {
-    case divider(text: String)
+    case divider(text: String, hunk: DiffHunkReference?)
     case codeBlock(rows: [DiffDisplayRow])
 }
 
@@ -19,7 +24,13 @@ func buildDiffChunks(from rows: [DiffDisplayRow]) -> [DiffChunk] {
                 currentRows = []
             }
             let label = row.kind == .hunk ? hunkLabel(row.text) : row.text
-            chunks.append(.divider(text: label))
+            let hunkRef: DiffHunkReference?
+            if row.kind == .hunk, let idx = row.hunkIndex, let src = row.source {
+                hunkRef = DiffHunkReference(hunkIndex: idx, source: src)
+            } else {
+                hunkRef = nil
+            }
+            chunks.append(.divider(text: label, hunk: hunkRef))
         } else {
             currentRows.append(row)
         }
@@ -33,13 +44,27 @@ func buildDiffChunks(from rows: [DiffDisplayRow]) -> [DiffChunk] {
 }
 
 func buildDiffMetadata(from rows: [DiffDisplayRow]) -> [DiffLineMetadata] {
-    rows.map {
-        DiffLineMetadata(
-            kind: $0.kind,
-            oldLineNumber: $0.oldLineNumber,
-            newLineNumber: $0.newLineNumber
-        )
+    var bodyOffsetByHunk: [Int: Int] = [:]
+    var output: [DiffLineMetadata] = []
+    output.reserveCapacity(rows.count)
+    for row in rows {
+        let hunkIndex = row.hunkIndex
+        var bodyLineIndex: Int?
+        if row.kind != .hunk, row.kind != .collapsed, let hunkIndex {
+            let next = (bodyOffsetByHunk[hunkIndex] ?? 0)
+            bodyLineIndex = next
+            bodyOffsetByHunk[hunkIndex] = next + 1
+        }
+        output.append(DiffLineMetadata(
+            kind: row.kind,
+            oldLineNumber: row.oldLineNumber,
+            newLineNumber: row.newLineNumber,
+            hunkIndex: hunkIndex,
+            bodyLineIndex: bodyLineIndex,
+            source: row.source
+        ))
     }
+    return output
 }
 
 struct DiffRenderedBlock: @unchecked Sendable {
@@ -208,6 +233,8 @@ struct DiffGutterBridge: NSViewRepresentable {
     let filePath: String
     let mode: DiffGutterMode
     let columnWidth: CGFloat
+    var onStageLine: ((GitPatchBuilder.LineSelection) -> Void)? = nil
+    var onUnstageLine: ((GitPatchBuilder.LineSelection) -> Void)? = nil
 
     final class Coordinator {
         var configuredSignature = Int.min
@@ -235,10 +262,14 @@ struct DiffGutterBridge: NSViewRepresentable {
         hasher.combine(gutterModeHash(mode))
         hasher.combine(columnWidth)
         hasher.combine(metadata.count)
+        hasher.combine(onStageLine != nil)
+        hasher.combine(onUnstageLine != nil)
         for line in metadata {
             hasher.combine(diffRowKindHash(line.kind))
             hasher.combine(line.oldLineNumber)
             hasher.combine(line.newLineNumber)
+            hasher.combine(line.hunkIndex)
+            hasher.combine(line.bodyLineIndex)
         }
         return hasher.finalize()
     }
@@ -257,6 +288,8 @@ struct DiffGutterBridge: NSViewRepresentable {
         view.cachedNumberHoverColor = GhosttyService.shared.foregroundColor.withAlphaComponent(0.85)
         view.cachedAddColor = MuxyTheme.nsDiffAdd
         view.cachedRemoveColor = MuxyTheme.nsDiffRemove
+        view.onStageLine = onStageLine
+        view.onUnstageLine = onUnstageLine
         view.invalidateIntrinsicContentSize()
         view.needsDisplay = true
         context.coordinator.configuredSignature = gutterSignature
