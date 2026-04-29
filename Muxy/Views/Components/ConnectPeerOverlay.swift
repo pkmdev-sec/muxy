@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import MuxyShared
 
@@ -192,8 +193,60 @@ struct ConnectPeerOverlay: View {
                     .truncationMode(.middle)
             }
             Spacer()
+            Button("Stream Pane") {
+                streamFirstPane(project: project)
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 10, weight: .semibold))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(MuxyTheme.accent.opacity(0.15))
+            .foregroundStyle(MuxyTheme.accent)
+            .clipShape(Capsule())
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 5)
+    }
+
+    private func streamFirstPane(project: ProjectDTO) {
+        Task {
+            guard let workspace = await client.fetchWorkspace(projectID: project.id) else {
+                ToastState.shared.show("Peer workspace unavailable")
+                return
+            }
+            guard let (paneID, title) = firstTerminalPane(in: workspace.root) else {
+                ToastState.shared.show("No live terminal panes on peer")
+                return
+            }
+            guard let appDelegate = NSApp.delegate as? AppDelegate else { return }
+            let peerName: String
+            if case let .connected(name, _) = client.state {
+                peerName = name
+            } else {
+                peerName = client.currentHost ?? "peer"
+            }
+            appDelegate.openRemotePane(
+                remotePaneID: paneID,
+                projectPath: project.path,
+                projectName: project.name,
+                paneTitle: title,
+                peerDeviceName: peerName
+            )
+            onDismiss()
+        }
+    }
+
+    private func firstTerminalPane(in node: SplitNodeDTO) -> (UUID, String)? {
+        switch node {
+        case let .tabArea(area):
+            for tab in area.tabs {
+                if tab.kind == .terminal, let paneID = tab.paneID {
+                    return (paneID, tab.title)
+                }
+            }
+            return nil
+        case let .split(split):
+            return firstTerminalPane(in: split.first) ?? firstTerminalPane(in: split.second)
+        }
     }
 }

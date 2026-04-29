@@ -190,7 +190,8 @@ enum WorkspaceTemplateApplier {
              .diffViewer,
              .testRunner,
              .agentCanvas,
-             .gitLog:
+             .gitLog,
+             .remotePane:
             newTab = TerminalTab(pane: TerminalPaneState(projectPath: startupPath))
         }
         if let title = templateTab.customTitle { newTab.customTitle = title }

@@ -11,6 +11,7 @@ final class TerminalTab: Identifiable {
         case testRunner
         case agentCanvas
         case gitLog
+        case remotePane
     }
 
     enum Content {
@@ -21,6 +22,7 @@ final class TerminalTab: Identifiable {
         case testRunner(TestRunnerTabState)
         case agentCanvas(AgentCanvasState)
         case gitLog(GitLogTabState)
+        case remotePane(RemotePaneTabState)
 
         var kind: Kind {
             switch self {
@@ -31,6 +33,7 @@ final class TerminalTab: Identifiable {
             case .testRunner: .testRunner
             case .agentCanvas: .agentCanvas
             case .gitLog: .gitLog
+            case .remotePane: .remotePane
             }
         }
 
@@ -69,6 +72,11 @@ final class TerminalTab: Identifiable {
             return state
         }
 
+        var remotePaneState: RemotePaneTabState? {
+            guard case let .remotePane(state) = self else { return nil }
+            return state
+        }
+
         var projectPath: String {
             switch self {
             case let .terminal(pane): pane.projectPath
@@ -78,6 +86,7 @@ final class TerminalTab: Identifiable {
             case let .testRunner(state): state.projectPath
             case let .agentCanvas(state): state.projectPath
             case let .gitLog(state): state.projectPath
+            case let .remotePane(state): state.projectPath
             }
         }
     }
@@ -108,6 +117,8 @@ final class TerminalTab: Identifiable {
         case let .agentCanvas(state):
             return state.displayTitle
         case let .gitLog(state):
+            return state.displayTitle
+        case let .remotePane(state):
             return state.displayTitle
         }
     }
@@ -140,6 +151,10 @@ final class TerminalTab: Identifiable {
         content = .gitLog(gitLogState)
     }
 
+    init(remotePaneState: RemotePaneTabState) {
+        content = .remotePane(remotePaneState)
+    }
+
     init(restoring snapshot: TerminalTabSnapshot) {
         customTitle = snapshot.customTitle
         colorID = snapshot.colorID
@@ -169,6 +184,8 @@ final class TerminalTab: Identifiable {
             content = .agentCanvas(canvas)
         case .gitLog:
             content = .gitLog(GitLogTabState(projectPath: snapshot.projectPath))
+        case .remotePane:
+            content = .terminal(TerminalPaneState(projectPath: snapshot.projectPath, title: snapshot.paneTitle))
         }
     }
 

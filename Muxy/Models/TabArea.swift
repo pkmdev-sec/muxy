@@ -88,7 +88,11 @@ final class TabArea: Identifiable {
         insertTab(TerminalTab(testRunnerState: state))
     }
 
-    func createGitLogTab() {
+    func createRemotePaneTab(state: RemotePaneTabState) {
+        insertTab(TerminalTab(remotePaneState: state))
+    }
+
+        func createGitLogTab() {
         if let existing = tabs.first(where: { $0.kind == .gitLog }) {
             selectTab(existing.id)
             return

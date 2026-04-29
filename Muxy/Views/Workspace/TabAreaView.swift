@@ -151,6 +151,8 @@ private struct TabContentView: View {
             AgentCanvasTabView(state: state, focused: focused, onFocus: onFocus)
         case let .gitLog(state):
             GitLogTabView(state: state, focused: focused, onFocus: onFocus)
+        case let .remotePane(state):
+            RemotePaneTabView(state: state, focused: focused, onFocus: onFocus)
         }
     }
 }

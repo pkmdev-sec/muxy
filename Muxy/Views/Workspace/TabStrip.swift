@@ -507,6 +507,7 @@ private struct TabCell: View {
         case .testRunner: label += ", Test Runner"
         case .agentCanvas: label += ", Agent Canvas"
         case .gitLog: label += ", Commit Graph"
+        case .remotePane: label += ", Remote Pane"
         }
         if tab.isPinned { label += ", Pinned" }
         if hasUnread { label += ", Unread" }

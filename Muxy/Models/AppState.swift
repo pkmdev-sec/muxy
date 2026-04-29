@@ -429,6 +429,8 @@ final class AppState {
             return
         case .gitLog:
             return
+        case .remotePane:
+            return
         }
 
         closedTabHistory.push(ClosedTabRecord(

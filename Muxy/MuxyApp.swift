@@ -58,6 +58,23 @@ struct MuxyApp: App {
                             worktreeStore: worktreeStore
                         )
                     }
+                    appDelegate.openRemotePaneHandler = { [appState] remotePaneID, projectPath, projectName, paneTitle, peerDeviceName in
+                        let state = RemotePaneTabState(
+                            remotePaneID: remotePaneID,
+                            projectPath: projectPath,
+                            projectName: projectName,
+                            peerDeviceName: peerDeviceName
+                        )
+                        state.buffer = ""
+                        _ = paneTitle
+                        guard let projectID = appState.activeProjectID,
+                              let area = appState.focusedArea(for: projectID)
+                        else {
+                            ToastState.shared.show("Open a local project first")
+                            return
+                        }
+                        area.createRemotePaneTab(state: state)
+                    }
                     appDelegate.flushPendingOpens()
                     NotificationSocketServer.shared.openProjectHandler = { path in
                         Task { @MainActor in
@@ -125,10 +142,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var onTerminate: (() -> Void)?
     var hasUnsavedEditorTabs: (() -> [EditorTabState])?
     var openProjectFromPath: ((String) -> Void)?
+    var openRemotePaneHandler: ((UUID, String, String, String, String) -> Void)?
 
     private var pendingOpenPaths: [String] = []
 
     @MainActor
+    func openRemotePane(
+        remotePaneID: UUID,
+        projectPath: String,
+        projectName: String,
+        paneTitle: String,
+        peerDeviceName: String
+    ) {
+        openRemotePaneHandler?(remotePaneID, projectPath, projectName, paneTitle, peerDeviceName)
+    }
+
+        @MainActor
     func handleOpenProjectPath(_ path: String) {
         let standardized = URL(fileURLWithPath: path).standardizedFileURL.path
         var isDirectory: ObjCBool = false

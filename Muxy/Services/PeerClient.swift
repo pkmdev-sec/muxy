@@ -196,11 +196,26 @@ final class PeerClient {
             case let .response(response):
                 guard let continuation = pendingRequests.removeValue(forKey: response.id) else { return }
                 continuation.resume(returning: response)
-            case .request, .event:
+            case .request:
                 break
+            case let .event(event):
+                handleEvent(event)
             }
         } catch {
             peerClientLogger.error("Decode failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func handleEvent(_ event: MuxyEvent) {
+        switch event.data {
+        case let .terminalOutput(dto):
+            terminalSubscribers[dto.paneID]?(dto.bytes)
+        case let .terminalSnapshot(dto):
+            terminalSubscribers[dto.paneID]?(dto.bytes)
+        case let .projects(list):
+            remoteProjects = list
+        default:
+            break
         }
     }
 
@@ -209,6 +224,42 @@ final class PeerClient {
         pendingRequests.removeAll()
         for (_, continuation) in continuations {
             continuation.resume(throwing: error)
+        }
+    }
+
+    typealias TerminalByteHandler = @MainActor (Data) -> Void
+
+    @ObservationIgnored private var terminalSubscribers: [UUID: TerminalByteHandler] = [:]
+
+    func subscribeTerminal(paneID: UUID, handler: @escaping TerminalByteHandler) {
+        terminalSubscribers[paneID] = handler
+    }
+
+    func unsubscribeTerminal(paneID: UUID) {
+        terminalSubscribers.removeValue(forKey: paneID)
+    }
+
+    func takeOverPane(paneID: UUID, cols: UInt32 = 120, rows: UInt32 = 40) async {
+        let params = TakeOverPaneParams(paneID: paneID, cols: cols, rows: rows)
+        _ = try? await send(method: .takeOverPane, params: .takeOverPane(params))
+    }
+
+    func releasePane(paneID: UUID) async {
+        let params = ReleasePaneParams(paneID: paneID)
+        _ = try? await send(method: .releasePane, params: .releasePane(params))
+    }
+
+    func fetchWorkspace(projectID: UUID) async -> WorkspaceDTO? {
+        do {
+            let response = try await send(
+                method: .getWorkspace,
+                params: .getWorkspace(GetWorkspaceParams(projectID: projectID))
+            )
+            if case let .workspace(dto) = response.result { return dto }
+            return nil
+        } catch {
+            peerClientLogger.error("getWorkspace failed: \(error.localizedDescription)")
+            return nil
         }
     }
 }

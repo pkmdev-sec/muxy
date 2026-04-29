@@ -90,6 +90,7 @@ extension TerminalTab.Kind {
         case .testRunner: .terminal
         case .agentCanvas: .terminal
         case .gitLog: .terminal
+        case .remotePane: .terminal
         }
     }
 }
