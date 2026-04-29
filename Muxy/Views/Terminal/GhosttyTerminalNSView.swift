@@ -316,8 +316,27 @@ final class GhosttyTerminalNSView: NSView {
         return (UInt32(width), UInt32(height))
     }
 
-    private func isAppShortcut(_ event: NSEvent) -> Bool {
-        let key = KeyCombo.normalized(key: event.charactersIgnoringModifiers ?? "", keyCode: event.keyCode)
+    private static func safeCharactersIgnoringModifiers(_ event: NSEvent) -> String {
+        switch event.type {
+        case .keyDown, .keyUp:
+            return Self.safeCharactersIgnoringModifiers(event)
+        default:
+            return ""
+        }
+    }
+
+    private static func safeCharacters(_ event: NSEvent) -> String {
+        switch event.type {
+        case .keyDown, .keyUp:
+            return event.characters ?? ""
+        default:
+            return ""
+        }
+    }
+
+        private func isAppShortcut(_ event: NSEvent) -> Bool {
+        guard event.type == .keyDown || event.type == .keyUp else { return false }
+        let key = KeyCombo.normalized(key: Self.safeCharactersIgnoringModifiers(event), keyCode: event.keyCode)
         let modifiers = event.modifierFlags.intersection(KeyCombo.supportedModifierMask)
         if modifiers == .command, Self.systemShortcutKeys.contains(key) {
             return true
@@ -643,7 +662,7 @@ final class GhosttyTerminalNSView: NSView {
         var keyEvent = ghostty_input_key_s()
         keyEvent.action = action
 
-        let normalized = KeyCombo.normalized(key: event.charactersIgnoringModifiers ?? "", keyCode: event.keyCode)
+        let normalized = KeyCombo.normalized(key: Self.safeCharactersIgnoringModifiers(event), keyCode: event.keyCode)
         if let mappedCode = KeyCombo.keyCode(for: normalized) {
             keyEvent.keycode = UInt32(mappedCode)
         } else {
@@ -713,7 +732,7 @@ final class GhosttyTerminalNSView: NSView {
     }
 
     private func shortcutText(from event: NSEvent) -> String {
-        let normalized = KeyCombo.normalized(key: event.charactersIgnoringModifiers ?? "", keyCode: event.keyCode)
+        let normalized = KeyCombo.normalized(key: Self.safeCharactersIgnoringModifiers(event), keyCode: event.keyCode)
         if normalized.unicodeScalars.count == 1,
            let scalar = normalized.unicodeScalars.first,
            scalar.isASCII, scalar.value >= 32, scalar.value <= 126
@@ -723,11 +742,11 @@ final class GhosttyTerminalNSView: NSView {
         if let scalar = KeyCombo.scalar(for: event.keyCode) {
             return String(scalar)
         }
-        return event.charactersIgnoringModifiers ?? event.characters ?? ""
+        return Self.safeCharactersIgnoringModifiers(event).isEmpty ? Self.safeCharacters(event) : Self.safeCharactersIgnoringModifiers(event)
     }
 
     private func unshiftedCodepoint(from event: NSEvent) -> UInt32 {
-        let normalized = KeyCombo.normalized(key: event.charactersIgnoringModifiers ?? "", keyCode: event.keyCode)
+        let normalized = KeyCombo.normalized(key: Self.safeCharactersIgnoringModifiers(event), keyCode: event.keyCode)
         if let scalar = normalized.unicodeScalars.first, normalized.unicodeScalars.count == 1 {
             return scalar.value
         }
