@@ -92,14 +92,45 @@ private typealias TerminalOutputBusDataCallback = @convention(c) (
     UInt
 ) -> Void
 
+private final class TerminalOutputBurstCoalescer: @unchecked Sendable {
+    static let shared = TerminalOutputBurstCoalescer()
+    private let lock = NSLock()
+    private var pendingByToken: [Int: Data] = [:]
+    private var flushScheduled = false
+
+    func enqueue(token: Int, bytes: UnsafePointer<UInt8>, len: Int) {
+        lock.lock()
+        var existing = pendingByToken[token] ?? Data()
+        existing.append(bytes, count: len)
+        pendingByToken[token] = existing
+        let shouldSchedule = !flushScheduled
+        if shouldSchedule {
+            flushScheduled = true
+        }
+        lock.unlock()
+        guard shouldSchedule else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.flush()
+        }
+    }
+
+    private func flush() {
+        lock.lock()
+        let snapshot = pendingByToken
+        pendingByToken.removeAll(keepingCapacity: true)
+        flushScheduled = false
+        lock.unlock()
+        MainActor.assumeIsolated {
+            for (token, bytes) in snapshot {
+                guard let paneID = TerminalOutputBus.shared.pane(for: token) else { continue }
+                TerminalOutputBus.shared.dispatch(paneID: paneID, bytes: bytes)
+            }
+        }
+    }
+}
+
 private let terminalOutputBusDataCallback: TerminalOutputBusDataCallback = { userdata, ptr, len in
     guard let userdata, let ptr, len > 0 else { return }
     let token = Int(bitPattern: userdata)
-    let bytes = Data(bytes: ptr, count: Int(len))
-    DispatchQueue.main.async {
-        MainActor.assumeIsolated {
-            guard let paneID = TerminalOutputBus.shared.pane(for: token) else { return }
-            TerminalOutputBus.shared.dispatch(paneID: paneID, bytes: bytes)
-        }
-    }
+    TerminalOutputBurstCoalescer.shared.enqueue(token: token, bytes: ptr, len: Int(len))
 }

@@ -43,6 +43,7 @@ final class GhosttyTerminalNSView: NSView {
         self.command = command
         super.init(frame: .zero)
         wantsLayer = true
+        layerContentsRedrawPolicy = .onSetNeedsDisplay
         setupTrackingArea()
         registerForDraggedTypes([.fileURL, .string])
         setAccessibilityRole(.textArea)
@@ -153,15 +154,14 @@ final class GhosttyTerminalNSView: NSView {
     }
 
     func destroySurface() {
-        if let surface {
-            if let paneID = TerminalViewRegistry.shared.paneID(for: self) {
-                RemoteTerminalStreamer.shared.detach(paneID: paneID)
-                TerminalScrollbackStore.shared.detach(paneID: paneID)
-                TerminalOutputBus.shared.detach(paneID: paneID, surface: surface)
-            }
-            ghostty_surface_free(surface)
-        }
+        guard let surfaceToFree = surface else { return }
         surface = nil
+        if let paneID = TerminalViewRegistry.shared.paneID(for: self) {
+            RemoteTerminalStreamer.shared.detach(paneID: paneID)
+            TerminalScrollbackStore.shared.detach(paneID: paneID)
+            TerminalOutputBus.shared.detach(paneID: paneID, surface: surfaceToFree)
+        }
+        ghostty_surface_free(surfaceToFree)
     }
 
     func tearDown() {
@@ -191,8 +191,14 @@ final class GhosttyTerminalNSView: NSView {
         screenChangeObserver.flatMap { NotificationCenter.default.removeObserver($0) }
         occlusionObserver.flatMap { NotificationCenter.default.removeObserver($0) }
         delayedResizeWorkItem?.cancel()
-        if let surface {
-            ghostty_surface_free(surface)
+        guard let orphanSurface = surface else { return }
+        surface = nil
+        if Thread.isMainThread {
+            ghostty_surface_free(orphanSurface)
+        } else {
+            DispatchQueue.main.async {
+                ghostty_surface_free(orphanSurface)
+            }
         }
     }
 
