@@ -10,7 +10,7 @@ struct EditorPane: View {
     var body: some View {
         VStack(spacing: 0) {
             EditorBreadcrumb(state: state)
-            Rectangle().fill(MuxyTheme.border).frame(height: 1)
+            Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
             if state.awaitingLargeFileConfirmation {
                 largeFileConfirmation
             } else if state.isLoading {
@@ -50,12 +50,28 @@ struct EditorPane: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
-                .background(MuxyTheme.bg.opacity(0.92))
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(.regularMaterial)
+                )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(MuxyTheme.border, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [MuxyGlass.topHighlight, Color.clear],
+                                startPoint: .top,
+                                endPoint: .center
+                            ),
+                            lineWidth: 1
+                        )
+                        .blendMode(MuxyTheme.colorScheme == .light ? .normal : .plusLighter)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 6))
+                .shadow(color: .black.opacity(0.25), radius: 6, y: 2)
                 .padding(.top, 6)
                 .padding(.trailing, state.searchVisible && showsCodeEditor ? 260 : 8)
             }
@@ -271,7 +287,7 @@ private struct EditorMarkdownModePicker: View {
                         .frame(width: 22, height: 20)
                         .background(
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(scrollSyncEnabled ? MuxyTheme.surface : Color.clear)
+                                .fill(scrollSyncEnabled ? MuxyTheme.accentSoft : Color.clear)
                         )
                         .contentShape(Rectangle())
                 }
@@ -280,7 +296,7 @@ private struct EditorMarkdownModePicker: View {
                 .accessibilityLabel(scrollSyncEnabled ? "Disable Markdown Scroll Sync" : "Enable Markdown Scroll Sync")
 
                 Rectangle()
-                    .fill(MuxyTheme.border)
+                    .fill(MuxyGlass.borderSoft)
                     .frame(width: 1, height: 14)
                     .padding(.horizontal, 2)
             }
@@ -293,7 +309,7 @@ private struct EditorMarkdownModePicker: View {
                         .frame(width: 22, height: 20)
                         .background(
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(mode == candidate ? MuxyTheme.surface : Color.clear)
+                                .fill(mode == candidate ? MuxyTheme.accentSoft : Color.clear)
                         )
                         .contentShape(Rectangle())
                 }
@@ -303,10 +319,13 @@ private struct EditorMarkdownModePicker: View {
             }
         }
         .padding(2)
-        .background(MuxyTheme.bg)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(MuxyTheme.border, lineWidth: 1)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
         )
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
@@ -337,8 +356,9 @@ private struct EditorBreadcrumb: View {
                 .textSelection(.enabled)
             if state.isModified {
                 Circle()
-                    .fill(MuxyTheme.fg)
+                    .fill(MuxyTheme.accent)
                     .frame(width: 6, height: 6)
+                    .shadow(color: MuxyTheme.accent.opacity(0.6), radius: 3)
             }
             if state.isReadOnly {
                 Label("Read-only", systemImage: "lock.fill")
@@ -359,7 +379,19 @@ private struct EditorBreadcrumb: View {
         }
         .padding(.horizontal, 10)
         .frame(height: 32)
-        .background(MuxyTheme.bg)
+        .background(
+            VisualEffectView(
+                material: MuxyMaterials.elevatedPanel,
+                blendingMode: .withinWindow,
+                state: .active
+            )
+        )
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(MuxyGlass.topHighlight)
+                .frame(height: 0.5)
+                .blendMode(MuxyTheme.colorScheme == .light ? .normal : .plusLighter)
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(breadcrumbAccessibilityLabel)
     }

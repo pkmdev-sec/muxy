@@ -82,7 +82,10 @@ struct MainWindow: View {
                             if sidebarExpanded {
                                 HStack(spacing: 0) {
                                     navigationArrows
-                                    Rectangle().fill(MuxyTheme.border).frame(width: 1)
+                                    Rectangle()
+                                        .fill(MuxyGlass.borderSoft)
+                                        .frame(width: 1)
+                                        .padding(.vertical, 8)
                                 }
                             }
                         }
@@ -91,22 +94,26 @@ struct MainWindow: View {
             }
             .frame(height: 32)
             .background(WindowDragRepresentable())
-            .background(MuxyTheme.bg)
+            .background(TopBarChrome())
 
-            Rectangle().fill(MuxyTheme.border).frame(height: 1)
-                .background(MuxyTheme.bg)
+            Rectangle()
+                .fill(MuxyGlass.borderSoft)
+                .frame(height: 1)
+                .allowsHitTesting(false)
 
             HStack(spacing: 0) {
                 HStack(spacing: 0) {
                     Sidebar()
-                    Rectangle().fill(MuxyTheme.border).frame(width: 1)
+                    Rectangle()
+                        .fill(MuxyGlass.borderSoft)
+                        .frame(width: 1)
                         .accessibilityHidden(true)
                 }
                 .fixedSize(horizontal: true, vertical: false)
-                .background(MuxyTheme.bg)
+                .background(SidebarChrome())
 
                 ZStack {
-                    MuxyTheme.bg
+                    WorkspaceBackground()
                     if let project = activeProject,
                        appState.workspaceRoot(for: project.id) == nil,
                        let worktree = resolvedActiveWorktree(for: project)
@@ -195,8 +202,22 @@ struct MainWindow: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(MuxyTheme.bg, in: Capsule())
-                .overlay(Capsule().stroke(MuxyTheme.border, lineWidth: 1))
+                .background {
+                    Capsule()
+                        .fill(MuxyTheme.bg.opacity(MuxyTheme.colorScheme == .light ? 0.65 : 0.55))
+                        .background(
+                            VisualEffectView(
+                                material: MuxyMaterials.popoverMaterial,
+                                blendingMode: .withinWindow,
+                                isMaskingEnabled: true,
+                                cornerRadius: 20
+                            )
+                        )
+                        .clipShape(Capsule())
+                }
+                .overlay(Capsule().strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.75))
+                .shadow(color: MuxyGlass.shadow, radius: 14, y: 6)
+                .shadow(color: MuxyGlass.ambientShadow, radius: 4, y: 1)
                 .padding(toastEdgePadding)
                 .transition(.move(edge: toastTransitionEdge).combined(with: .opacity))
                 .allowsHitTesting(false)
@@ -731,11 +752,13 @@ struct MainWindow: View {
     }
 
     private func sidePanelResizeHandle(onDrag: @escaping (CGFloat) -> Void) -> some View {
-        Rectangle().fill(MuxyTheme.border).frame(width: 1)
+        Rectangle()
+            .fill(MuxyGlass.borderSoft)
+            .frame(width: 1)
             .accessibilityHidden(true)
             .overlay {
                 Color.clear
-                    .frame(width: 5)
+                    .frame(width: 8)
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture(minimumDistance: 1)
@@ -1011,20 +1034,26 @@ private struct NavigationArrowButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(foregroundColor)
-                .frame(width: 22, height: 22)
+                .frame(width: 24, height: 22)
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(hovered && isEnabled ? MuxyGlass.hoverFill : Color.clear)
+                        .padding(2)
+                )
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
         .onHover { hovered = $0 }
+        .animation(MuxyMotion.hover, value: hovered)
         .help(label)
         .accessibilityLabel(label)
     }
 
     private var foregroundColor: Color {
-        guard isEnabled else { return MuxyTheme.fgMuted.opacity(0.35) }
+        guard isEnabled else { return MuxyTheme.fgMuted.opacity(0.30) }
         return hovered ? MuxyTheme.fg : MuxyTheme.fgMuted
     }
 }
@@ -1402,5 +1431,69 @@ private struct MainWindowExtraOverlays: ViewModifier {
             )
             .transition(.move(edge: .top).combined(with: .opacity))
         }
+    }
+}
+
+struct TopBarChrome: View {
+    var body: some View {
+        ZStack {
+            VisualEffectView(
+                material: MuxyMaterials.windowChrome,
+                blendingMode: .behindWindow,
+                state: .followsWindowActiveState
+            )
+            LinearGradient(
+                colors: [
+                    MuxyTheme.bg.opacity(MuxyTheme.colorScheme == .light ? 0.12 : 0.28),
+                    MuxyTheme.bg.opacity(MuxyTheme.colorScheme == .light ? 0.05 : 0.18),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            Rectangle()
+                .fill(MuxyGlass.topHighlight)
+                .frame(height: 0.5)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .blendMode(MuxyTheme.colorScheme == .light ? .normal : .plusLighter)
+        }
+    }
+}
+
+struct SidebarChrome: View {
+    var body: some View {
+        ZStack {
+            VisualEffectView(
+                material: MuxyMaterials.sidebarChrome,
+                blendingMode: .behindWindow,
+                state: .followsWindowActiveState
+            )
+            LinearGradient(
+                colors: [
+                    MuxyTheme.bg.opacity(MuxyTheme.colorScheme == .light ? 0.06 : 0.18),
+                    MuxyTheme.bg.opacity(MuxyTheme.colorScheme == .light ? 0.01 : 0.10),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+    }
+}
+
+struct WorkspaceBackground: View {
+    var body: some View {
+        ZStack {
+            MuxyTheme.bg
+            LinearGradient(
+                colors: [
+                    MuxyGlass.topHighlight.opacity(0.35),
+                    Color.clear,
+                ],
+                startPoint: .top,
+                endPoint: .center
+            )
+            .blendMode(MuxyTheme.colorScheme == .light ? .normal : .plusLighter)
+            .allowsHitTesting(false)
+        }
+        .ignoresSafeArea()
     }
 }

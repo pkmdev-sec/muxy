@@ -178,7 +178,7 @@ private struct CommitRow: View {
         }
         .padding(.horizontal, 10)
         .frame(height: 40)
-        .background(hovered ? MuxyTheme.hover : .clear)
+        .background(hovered ? MuxyGlass.hoverFill : Color.clear)
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
         .contextMenu { contextMenuItems }

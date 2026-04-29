@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// A command-palette style overlay for quickly switching between any
-/// worktree across all open projects. Triggered by Cmd+Shift+P.
 struct WorktreeSwitcherOverlay: View {
     let items: [WorktreeSwitcherItem]
     let activeKey: WorktreeKey?
@@ -82,13 +80,7 @@ private struct WorktreeSwitcherRow: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                     if item.worktree.isPrimary {
-                        Text("PRIMARY")
-                            .font(.system(size: 8, weight: .bold))
-                            .tracking(0.5)
-                            .foregroundStyle(MuxyTheme.fgDim)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(MuxyTheme.surface, in: Capsule())
+                        primaryChip
                     }
                 }
                 HStack(spacing: 6) {
@@ -116,9 +108,36 @@ private struct WorktreeSwitcherRow: View {
                     .foregroundStyle(MuxyTheme.accent)
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(isHighlighted ? MuxyTheme.surface : hovered ? MuxyTheme.hover : .clear)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(rowFill)
+        )
+        .padding(.horizontal, 6)
         .onHover { hovered = $0 }
+    }
+
+    private var rowFill: Color {
+        if isHighlighted { return MuxyGlass.selectionFill }
+        if hovered { return MuxyGlass.hoverFill }
+        return Color.clear
+    }
+
+    private var primaryChip: some View {
+        Text("PRIMARY")
+            .font(.system(size: 8, weight: .bold, design: .rounded))
+            .tracking(0.5)
+            .foregroundStyle(MuxyTheme.accent)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(
+                Capsule()
+                    .fill(MuxyTheme.accentSoft)
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(MuxyTheme.accent.opacity(0.35), lineWidth: 0.5)
+            )
     }
 }

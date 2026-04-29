@@ -35,7 +35,7 @@ struct ProjectIconColorPicker: View {
                 }
             }
 
-            Divider()
+            Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
 
             Button {
                 onSelect(nil)
@@ -54,6 +54,13 @@ struct ProjectIconColorPicker: View {
         }
         .padding(12)
         .frame(width: 216)
+        .background(
+            GlassPanelBackground(
+                material: MuxyMaterials.popoverMaterial,
+                cornerRadius: 10
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private func swatchButton(_ swatch: ProjectIconColor.Swatch) -> some View {
@@ -63,15 +70,29 @@ struct ProjectIconColorPicker: View {
         } label: {
             ZStack {
                 Circle()
-                    .fill(swatch.color)
+                    .fill(
+                        LinearGradient(
+                            colors: [swatch.color, swatch.color.opacity(0.82)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
                     .frame(width: 22, height: 22)
+                    .overlay(
+                        Circle()
+                            .strokeBorder(MuxyGlass.topHighlight, lineWidth: 0.75)
+                            .blendMode(MuxyTheme.colorScheme == .light ? .normal : .plusLighter)
+                    )
+                    .shadow(color: swatch.color.opacity(isSelected ? 0.55 : 0.2), radius: isSelected ? 6 : 2, y: 1)
                 if isSelected {
                     Circle()
                         .strokeBorder(swatch.foreground, lineWidth: 2)
                         .frame(width: 18, height: 18)
                 }
             }
-            .frame(width: 24, height: 24)
+            .frame(width: 26, height: 26)
+            .scaleEffect(isSelected ? 1.08 : 1)
+            .animation(MuxyMotion.fast, value: isSelected)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

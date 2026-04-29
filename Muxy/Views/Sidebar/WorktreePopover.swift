@@ -182,11 +182,12 @@ private struct WorktreePopoverRow: View {
                         if worktree.isPrimary {
                             Text("PRIMARY")
                                 .font(.system(size: 8, weight: .bold))
-                                .tracking(0.5)
-                                .foregroundStyle(MuxyTheme.fgDim)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 1)
-                                .background(MuxyTheme.surface, in: Capsule())
+                                .tracking(0.6)
+                                .foregroundStyle(MuxyTheme.accent)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1.5)
+                                .background(MuxyTheme.accent.opacity(0.14), in: Capsule())
+                                .overlay(Capsule().strokeBorder(MuxyTheme.accent.opacity(0.32), lineWidth: 0.5))
                         }
                     }
                 }
@@ -240,8 +241,8 @@ private struct WorktreePopoverRow: View {
 
     private var rowBackground: AnyShapeStyle {
         if selected { return AnyShapeStyle(MuxyTheme.accentSoft) }
-        if isHighlighted { return AnyShapeStyle(MuxyTheme.surface) }
-        if hovered { return AnyShapeStyle(MuxyTheme.hover) }
+        if isHighlighted { return AnyShapeStyle(MuxyGlass.selectionFill) }
+        if hovered { return AnyShapeStyle(MuxyGlass.hoverFill) }
         return AnyShapeStyle(Color.clear)
     }
 

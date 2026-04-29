@@ -162,8 +162,14 @@ struct CreatePRSheet: View {
                 .scrollContentBackground(.hidden)
                 .padding(6)
                 .frame(minHeight: 100, maxHeight: 160)
-                .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(MuxyTheme.border, lineWidth: 1))
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(MuxyGlass.insetFill)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+                )
         }
     }
 

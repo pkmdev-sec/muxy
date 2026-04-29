@@ -1,14 +1,10 @@
 import AppKit
 import SwiftUI
 
-/// A generic command-palette overlay with a search field, a scrollable
-/// results list, and keyboard navigation. Used by Quick Open (files) and
-/// the Worktree Switcher.
 struct PaletteOverlay<Item: Identifiable & Sendable>: View {
     let placeholder: String
     let emptyLabel: String
     let noMatchLabel: String
-    /// Provides items for a given query. Called on every query change.
     let search: (String) async -> [Item]
     let onSelect: (Item) -> Void
     let onDismiss: () -> Void
@@ -22,23 +18,12 @@ struct PaletteOverlay<Item: Identifiable & Sendable>: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.3)
-                .ignoresSafeArea()
-                .onTapGesture { onDismiss() }
-
-            VStack(spacing: 0) {
-                searchField
-                Divider().overlay(MuxyTheme.border)
-                resultsList
-            }
-            .frame(width: 500, height: 380)
-            .background(MuxyTheme.bg)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(MuxyTheme.border, lineWidth: 1))
-            .shadow(color: .black.opacity(0.4), radius: 20, y: 8)
-            .padding(.top, 60)
-            .frame(maxHeight: .infinity, alignment: .top)
-            .accessibilityAddTraits(.isModal)
+            scrim
+            panel
+                .padding(.top, 60)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .accessibilityAddTraits(.isModal)
+                .transition(.opacity.combined(with: .move(edge: .top)))
         }
         .onAppear {
             performSearch(debounce: false)
@@ -48,11 +33,48 @@ struct PaletteOverlay<Item: Identifiable & Sendable>: View {
         }
     }
 
+    private var scrim: some View {
+        ZStack {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .opacity(0.55)
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.28),
+                    Color.black.opacity(0.18),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            Color.black.opacity(0.22)
+        }
+        .ignoresSafeArea()
+        .contentShape(Rectangle())
+        .onTapGesture { onDismiss() }
+    }
+
+    private var panel: some View {
+        GlassPanel(
+            material: MuxyMaterials.overlayMaterial,
+            cornerRadius: 14,
+            elevation: .overlay
+        ) {
+            VStack(spacing: 0) {
+                searchField
+                Rectangle()
+                    .fill(MuxyGlass.borderSoft)
+                    .frame(height: 1)
+                resultsList
+            }
+        }
+        .frame(width: 500, height: 380)
+    }
+
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(MuxyTheme.fgMuted)
-                .font(.system(size: 13))
+                .font(.system(size: 13, weight: .medium))
                 .accessibilityHidden(true)
             PaletteSearchField(
                 text: $query,
@@ -63,8 +85,8 @@ struct PaletteOverlay<Item: Identifiable & Sendable>: View {
                 onArrowDown: { moveHighlight(1) }
             )
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
         .onChange(of: query) {
             performSearch()
         }
@@ -91,10 +113,13 @@ struct PaletteOverlay<Item: Identifiable & Sendable>: View {
                                     .id(item.id)
                             }
                         }
+                        .padding(.vertical, 4)
                     }
                     .onChange(of: highlightedIndex) { _, newIndex in
                         guard let newIndex, newIndex < results.count else { return }
-                        proxy.scrollTo(results[newIndex].id, anchor: nil)
+                        withAnimation(MuxyMotion.standard) {
+                            proxy.scrollTo(results[newIndex].id, anchor: nil)
+                        }
                     }
                 }
             }

@@ -20,6 +20,19 @@ struct VCSTabView: View {
         state.hasStagedChanges && !state.commitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var commitButtonFill: AnyShapeStyle {
+        if commitEnabled {
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: [MuxyTheme.accent, MuxyTheme.accent.opacity(0.78)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+        }
+        return AnyShapeStyle(MuxyGlass.insetFill)
+    }
+
     private var owningProject: Project? {
         if let id = worktreeStore.projectID(forWorktreePath: state.projectPath) {
             return projectStore.projects.first { $0.id == id }
@@ -35,10 +48,16 @@ struct VCSTabView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            Rectangle().fill(MuxyTheme.border).frame(height: 1)
+            Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
             content
         }
-        .background(MuxyTheme.bg)
+        .background(
+            VisualEffectView(
+                material: MuxyMaterials.windowChrome,
+                blendingMode: .behindWindow,
+                state: .followsWindowActiveState
+            )
+        )
         .contentShape(Rectangle())
         .onTapGesture(perform: onFocus)
         .onAppear {
@@ -135,7 +154,28 @@ struct VCSTabView: View {
         }
         .padding(.horizontal, 8)
         .frame(height: 32)
-        .background(MuxyTheme.bg)
+        .background {
+            ZStack {
+                VisualEffectView(
+                    material: MuxyMaterials.windowChrome,
+                    blendingMode: .behindWindow,
+                    state: .followsWindowActiveState
+                )
+                LinearGradient(
+                    colors: [
+                        MuxyTheme.bg.opacity(MuxyTheme.colorScheme == .light ? 0.10 : 0.24),
+                        MuxyTheme.bg.opacity(MuxyTheme.colorScheme == .light ? 0.02 : 0.10),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                Rectangle()
+                    .fill(MuxyGlass.topHighlight)
+                    .frame(height: 0.5)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .blendMode(MuxyTheme.colorScheme == .light ? .normal : .plusLighter)
+            }
+        }
         .sheet(isPresented: $showCreateWorktreeSheet) {
             if let project = owningProject {
                 CreateWorktreeSheet(project: project) { result in
@@ -216,12 +256,16 @@ struct VCSTabView: View {
                         .foregroundStyle(MuxyTheme.fgDim)
                 }
                 .foregroundStyle(MuxyTheme.fg.opacity(0.85))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 5))
-                .contentShape(RoundedRectangle(cornerRadius: 5))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(GlassChipButtonStyle())
             .help(worktreeTriggerLabel)
             .popover(isPresented: $showWorktreePopover, arrowEdge: .top) {
                 WorktreePopover(
@@ -473,8 +517,14 @@ struct VCSTabView: View {
                         return .ignored
                     }
             }
-            .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(MuxyTheme.border, lineWidth: 1))
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(MuxyGlass.insetFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+            )
 
             HStack(spacing: 6) {
                 commitButton
@@ -504,12 +554,22 @@ struct VCSTabView: View {
             .frame(maxWidth: .infinity)
             .frame(height: Self.actionButtonHeight)
             .background(
-                commitEnabled ? MuxyTheme.accent : MuxyTheme.surface,
-                in: RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(commitButtonFill)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(MuxyTheme.border, lineWidth: commitEnabled ? 0 : 1)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(
+                        commitEnabled
+                            ? Color.white.opacity(0.22)
+                            : MuxyGlass.borderSoft,
+                        lineWidth: commitEnabled ? 0.75 : 0.5
+                    )
+            )
+            .shadow(
+                color: commitEnabled ? MuxyTheme.accent.opacity(0.45) : .clear,
+                radius: commitEnabled ? 8 : 0,
+                y: commitEnabled ? 2 : 0
             )
         }
         .buttonStyle(.plain)
@@ -542,8 +602,14 @@ struct VCSTabView: View {
             .foregroundStyle(MuxyTheme.fg)
             .padding(.horizontal, 10)
             .frame(height: Self.actionButtonHeight)
-            .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(MuxyTheme.border, lineWidth: 1))
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(MuxyGlass.insetFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+            )
         }
         .buttonStyle(.plain)
         .disabled(state.isPulling)
@@ -577,8 +643,14 @@ struct VCSTabView: View {
             .foregroundStyle(MuxyTheme.fg)
             .padding(.horizontal, 10)
             .frame(height: Self.actionButtonHeight)
-            .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(MuxyTheme.border, lineWidth: 1))
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(MuxyGlass.insetFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+            )
         }
         .buttonStyle(.plain)
         .disabled(state.isPushing)
@@ -806,7 +878,7 @@ struct PRPill: View {
             }
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
-            .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 5))
+            .background(MuxyGlass.insetFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 5).stroke(prStateColor(info).opacity(0.35), lineWidth: 1))
             .contentShape(RoundedRectangle(cornerRadius: 5))
         }
@@ -894,7 +966,7 @@ struct PRPill: View {
             .foregroundStyle(tint)
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
-            .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 5))
+            .background(MuxyGlass.insetFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 5).stroke(tint.opacity(0.35), lineWidth: 1))
             .contentShape(RoundedRectangle(cornerRadius: 5))
         }
@@ -972,7 +1044,7 @@ struct PRPopover: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
                 .frame(maxWidth: .infinity)
-                .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 5))
+                .background(MuxyGlass.insetFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             }
             .buttonStyle(.plain)
 
@@ -999,7 +1071,11 @@ struct PRPopover: View {
                     .padding(.vertical, 6)
                     .frame(maxWidth: .infinity)
                     .background(
-                        mergeDisabled ? MuxyTheme.surface : MuxyTheme.accent,
+                        mergeDisabled ? AnyShapeStyle(MuxyGlass.insetFill) : AnyShapeStyle(LinearGradient(
+                            colors: [MuxyTheme.accent, MuxyTheme.accent.opacity(0.78)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )),
                         in: RoundedRectangle(cornerRadius: 5)
                     )
                 }
@@ -1023,7 +1099,7 @@ struct PRPopover: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
                     .frame(maxWidth: .infinity)
-                    .background(MuxyTheme.surface, in: RoundedRectangle(cornerRadius: 5))
+                    .background(MuxyGlass.insetFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .disabled(state.isClosingPullRequest)
@@ -1244,7 +1320,7 @@ private struct SectionSplitLayout: View {
                             allSections: allSections
                         )
                     } else {
-                        Rectangle().fill(MuxyTheme.border).frame(height: 1)
+                        Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
                     }
 
                     if collapsed {
@@ -1256,7 +1332,7 @@ private struct SectionSplitLayout: View {
                         sectionView(for: section, height: sectionHeight)
                     }
                 }
-                Rectangle().fill(MuxyTheme.border).frame(height: 1)
+                Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
             }
         }
     }
@@ -1297,7 +1373,7 @@ private struct SectionSplitLayout: View {
         totalHeight: CGFloat,
         allSections: [SectionKind]
     ) -> some View {
-        Rectangle().fill(MuxyTheme.border).frame(height: 1)
+        Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
             .overlay {
                 Color.clear
                     .frame(height: 5)
@@ -1542,7 +1618,7 @@ private struct SectionSplitLayout: View {
                 expandedDiff(for: file)
             }
 
-            Rectangle().fill(MuxyTheme.border).frame(height: 1)
+            Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -1697,5 +1773,84 @@ private struct FileRow: View {
                     .help("Discard changes")
             }
         }
+    }
+}
+
+struct GlassChipButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .brightness(configuration.isPressed ? -0.02 : 0)
+            .animation(MuxyMotion.fast, value: configuration.isPressed)
+    }
+}
+
+struct GlassSecondaryButtonStyle: ButtonStyle {
+    var cornerRadius: CGFloat = 6
+    var tint: Color = MuxyTheme.fg
+    @State private var hovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(tint)
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(hovered ? MuxyGlass.hoverFill : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(MuxyMotion.fast, value: configuration.isPressed)
+            .animation(MuxyMotion.hover, value: hovered)
+            .onHover { hovered = $0 }
+    }
+}
+
+struct GlassPrimaryButtonStyle: ButtonStyle {
+    var cornerRadius: CGFloat = 6
+    var enabled: Bool = true
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(enabled ? Color.white : MuxyTheme.fgDim)
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(
+                        enabled
+                            ? AnyShapeStyle(
+                                LinearGradient(
+                                    colors: [
+                                        MuxyTheme.accent,
+                                        MuxyTheme.accent.opacity(0.75),
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            : AnyShapeStyle(MuxyGlass.insetFill)
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(
+                        enabled ? Color.white.opacity(0.2) : MuxyGlass.borderSoft,
+                        lineWidth: 0.75
+                    )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .shadow(
+                color: enabled ? MuxyGlass.accentGlow : Color.clear,
+                radius: enabled ? 8 : 0,
+                y: enabled ? 2 : 0
+            )
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(MuxyMotion.fast, value: configuration.isPressed)
     }
 }

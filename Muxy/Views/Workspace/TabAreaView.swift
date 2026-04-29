@@ -52,7 +52,7 @@ struct TabAreaView: View {
                         area.reorderTab(fromOffsets: fromOffsets, toOffset: toOffset)
                     }
                 )
-                Rectangle().fill(MuxyTheme.border).frame(height: 1)
+                Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
             }
             ZStack {
                 ForEach(area.tabs) { tab in

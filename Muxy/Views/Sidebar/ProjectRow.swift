@@ -146,23 +146,44 @@ struct ProjectRow: View {
         let logo = resolvedLogo
         let unread = NotificationStore.shared.unreadCount(for: project.id)
         return ZStack {
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(iconBackground(hasLogo: logo != nil))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [MuxyGlass.topHighlight.opacity(0.8), Color.clear],
+                                startPoint: .top,
+                                endPoint: .center
+                            ),
+                            lineWidth: 0.75
+                        )
+                        .blendMode(MuxyTheme.colorScheme == .light ? .normal : .plusLighter)
+                        .opacity(logo == nil ? 0.9 : 0)
+                )
+                .shadow(
+                    color: isActive ? MuxyTheme.accent.opacity(0.35) : Color.black.opacity(0.18),
+                    radius: isActive ? 8 : 2,
+                    y: 1
+                )
 
             if let logo {
                 Image(nsImage: logo)
                     .resizable()
                     .scaledToFill()
                     .frame(width: 32, height: 32)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             } else {
                 Text(displayLetter)
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(letterForeground)
             }
         }
         .frame(width: 32, height: 32)
         .padding(3)
+        .scaleEffect(hovered ? 1.04 : 1)
+        .animation(MuxyMotion.fast, value: hovered)
+        .animation(MuxyMotion.standard, value: isActive)
         .overlay(alignment: .topTrailing) {
             if unread > 0 {
                 NotificationBadge(count: unread)
@@ -170,9 +191,23 @@ struct ProjectRow: View {
             }
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 11)
-                .strokeBorder(isActive ? MuxyTheme.accent : .clear, lineWidth: 1.5)
-                .animation(.easeInOut(duration: 0.15), value: isActive)
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .strokeBorder(
+                    isActive
+                        ? AnyShapeStyle(
+                            LinearGradient(
+                                colors: [
+                                    MuxyTheme.accent,
+                                    MuxyTheme.accent.opacity(0.55),
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        : AnyShapeStyle(Color.clear),
+                    lineWidth: 1.5
+                )
+                .animation(MuxyMotion.fade, value: isActive)
         }
         .overlay(alignment: .bottomTrailing) {
             if isRefreshingWorktrees {
@@ -186,10 +221,39 @@ struct ProjectRow: View {
     private func iconBackground(hasLogo: Bool) -> AnyShapeStyle {
         if hasLogo { return AnyShapeStyle(Color.clear) }
         if let tint = ProjectIconColor.color(for: project.iconColor) {
-            return AnyShapeStyle(hovered ? tint.opacity(0.85) : tint)
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: [
+                        tint.opacity(hovered ? 1 : 0.95),
+                        tint.opacity(hovered ? 0.82 : 0.75),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
         }
-        if hovered { return AnyShapeStyle(MuxyTheme.hover) }
-        return AnyShapeStyle(MuxyTheme.surface)
+        if hovered {
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: [
+                        MuxyGlass.hoverFill,
+                        MuxyGlass.insetFill,
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+        }
+        return AnyShapeStyle(
+            LinearGradient(
+                colors: [
+                    MuxyGlass.insetFill,
+                    MuxyGlass.insetFill.opacity(0.6),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
     }
 
     private var letterForeground: Color {

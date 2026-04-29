@@ -302,12 +302,27 @@ private struct TabCell: View {
         ProjectIconColor.color(for: tab.colorID)
     }
 
-    private var tabBackground: Color {
+    private var tabBackground: AnyShapeStyle {
         guard let tabColor else {
-            return active ? MuxyTheme.surface : .clear
+            if active {
+                return AnyShapeStyle(
+                    LinearGradient(
+                        colors: [
+                            MuxyGlass.topHighlight.opacity(0.45),
+                            MuxyGlass.hoverFill,
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+            }
+            if hovered {
+                return AnyShapeStyle(MuxyGlass.hoverFill)
+            }
+            return AnyShapeStyle(Color.clear)
         }
-        let opacity = if active { 0.18 } else if hovered { 0.08 } else { 0.04 }
-        return tabColor.opacity(opacity)
+        let opacity: Double = active ? 0.18 : (hovered ? 0.10 : 0.04)
+        return AnyShapeStyle(tabColor.opacity(opacity))
     }
 
     private var bottomAccentColor: Color? {
@@ -387,14 +402,10 @@ private struct TabCell: View {
             .overlay(alignment: titleHidden ? .center : .trailing) {
                 if !tab.isPinned {
                     let visible = titleHidden ? hovered : (active || hovered)
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(MuxyTheme.fgDim)
-                        .padding(.trailing, titleHidden ? 0 : 10)
+                    TabCloseButton(action: onClose)
+                        .padding(.trailing, titleHidden ? 0 : 8)
                         .opacity(visible ? 1 : 0)
-                        .onTapGesture(perform: onClose)
-                        .accessibilityLabel("Close Tab")
-                        .accessibilityAddTraits(.isButton)
+                        .animation(MuxyMotion.hover, value: visible)
                 }
             }
             .overlay {
@@ -406,13 +417,31 @@ private struct TabCell: View {
             }
             .overlay(alignment: .bottom) {
                 if let accentColor = bottomAccentColor {
-                    Rectangle()
-                        .fill(accentColor)
+                    RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [accentColor, accentColor.opacity(0.75)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                         .frame(height: 2)
+                        .padding(.horizontal, 14)
+                        .shadow(color: accentColor.opacity(0.45), radius: 3, y: 0)
                         .accessibilityHidden(true)
+                        .transition(.opacity)
                 }
             }
             .background(tabBackground)
+            .overlay(alignment: .top) {
+                if active {
+                    Rectangle()
+                        .fill(MuxyGlass.topHighlight)
+                        .frame(height: 0.5)
+                        .blendMode(MuxyTheme.colorScheme == .light ? .normal : .plusLighter)
+                        .allowsHitTesting(false)
+                }
+            }
             .contentShape(Rectangle())
             .onHover { hovering in
                 guard !isAnyDragging else { return }
@@ -473,7 +502,11 @@ private struct TabCell: View {
                 }
             }
 
-            Rectangle().fill(MuxyTheme.border).frame(width: 1)
+            Rectangle()
+                .fill(MuxyGlass.borderSoft)
+                .frame(width: 1)
+                .padding(.vertical, 8)
+                .allowsHitTesting(false)
         }
         .onReceive(NotificationCenter.default.publisher(for: .renameActiveTab)) { _ in
             guard active else { return }
@@ -556,5 +589,34 @@ private struct AITabActivityPulse: View {
                 }
             }
             .accessibilityLabel("AI activity")
+    }
+}
+
+private struct TabCloseButton: View {
+    let action: () -> Void
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(hovered ? MuxyTheme.fg : MuxyTheme.fgDim)
+                .frame(width: 16, height: 16)
+                .background {
+                    if hovered {
+                        Circle()
+                            .fill(MuxyGlass.hoverFill)
+                            .overlay(
+                                Circle()
+                                    .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+                            )
+                    }
+                }
+                .contentShape(Rectangle())
+                .animation(MuxyMotion.hover, value: hovered)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 }
+        .accessibilityLabel("Close Tab")
     }
 }

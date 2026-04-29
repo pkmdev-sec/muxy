@@ -1,156 +1,116 @@
-import AppKit
 import SwiftUI
 
 struct WelcomeView: View {
+    @Environment(AppState.self) private var appState
+    @Environment(ProjectStore.self) private var projectStore
+    @Environment(WorktreeStore.self) private var worktreeStore
+
+    @State private var appeared = false
+
     var body: some View {
         VStack(spacing: 0) {
             WindowDragRepresentable()
                 .frame(height: 32)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    heroSection
-                    tipCardSection
-                    Spacer(minLength: 32)
-                }
-                .padding(.horizontal, 40)
-                .padding(.top, 40)
-                .padding(.bottom, 40)
-                .frame(maxWidth: 720, alignment: .leading)
-                .frame(maxWidth: .infinity)
-            }
+            Spacer(minLength: 24)
+            content
+            Spacer(minLength: 24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { appeared = true }
     }
 
-    private var heroSection: some View {
-        HStack(alignment: .top, spacing: 18) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .interpolation(.high)
-                .frame(width: 72, height: 72)
-            VStack(alignment: .leading, spacing: 6) {
+    private var content: some View {
+        VStack(spacing: 24) {
+            iconHero
+
+            VStack(spacing: 8) {
                 Text("Welcome to Muxy")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 22, weight: .semibold, design: .rounded))
                     .foregroundStyle(MuxyTheme.fg)
-                Text("A terminal multiplexer for macOS, built around projects and split panes.")
-                    .font(.system(size: 13))
+
+                Text("A native macOS terminal multiplexer.\nAdd a project folder to begin.")
+                    .multilineTextAlignment(.center)
+                    .font(.system(size: 12))
                     .foregroundStyle(MuxyTheme.fgMuted)
-                HStack(spacing: 10) {
-                    shortcutPill(label: "Open Project", combo: "⌘O")
-                    shortcutPill(label: "Command Palette", combo: "⌘⇧P")
-                }
-                .padding(.top, 6)
+                    .frame(maxWidth: 360)
             }
-            Spacer(minLength: 0)
+
+            addProjectButton
+        }
+        .opacity(appeared ? 1 : 0)
+        .offset(y: appeared ? 0 : 10)
+        .animation(MuxyMotion.gentle, value: appeared)
+        .padding(.horizontal, 32)
+    }
+
+    private var iconHero: some View {
+        ZStack {
+            Circle()
+                .fill(MuxyTheme.accent.opacity(MuxyTheme.colorScheme == .light ? 0.10 : 0.18))
+                .frame(width: 108, height: 108)
+                .blur(radius: 10)
+
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(MuxyTheme.accent.opacity(MuxyTheme.colorScheme == .light ? 0.12 : 0.18))
+                .frame(width: 96, height: 96)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .strokeBorder(MuxyGlass.topHighlight, lineWidth: 1)
+                        .blendMode(MuxyTheme.colorScheme == .light ? .normal : .plusLighter)
+                )
+                .shadow(color: MuxyTheme.accent.opacity(0.35), radius: 24, y: 6)
+
+            Image(systemName: "terminal.fill")
+                .font(.system(size: 36, weight: .regular))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [
+                            MuxyTheme.accent,
+                            MuxyTheme.accent.opacity(0.65),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
         }
     }
 
-    private var tipCardSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Power-user shortcuts")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(MuxyTheme.fgMuted)
-                .textCase(.uppercase)
-
-            VStack(spacing: 1) {
-                tipRow(
-                    symbol: "command",
-                    title: "Command Palette",
-                    description: "Run any action, theme, or navigation",
-                    combo: "⌘⇧P"
-                )
-                tipRow(
-                    symbol: "sparkles.rectangle.stack",
-                    title: "Agent Inbox",
-                    description: "Live cross-project status of every AI agent running in Muxy",
-                    combo: "⌘⇧A"
-                )
-                tipRow(
-                    symbol: "square.stack.3d.up",
-                    title: "Start Agent Workbench",
-                    description: "Spin up each agent in its own worktree from .muxy/worktree.json",
-                    combo: "⌘⇧P"
-                )
-                tipRow(
-                    symbol: "bookmark",
-                    title: "Scrollback Checkpoint",
-                    description: "Mark a spot in terminal output, jump back or export the range",
-                    combo: "⌘⇧M"
-                )
-                tipRow(
-                    symbol: "record.circle",
-                    title: "Workflow Recorder",
-                    description: "Capture a palette sequence, replay as a macro",
-                    combo: "⌘⌥R"
-                )
-                tipRow(
-                    symbol: "checkmark.square",
-                    title: "Test Runner Tab",
-                    description: "Structured pass/fail tree for Swift Testing and XCTest runs",
-                    combo: "⌘⇧P"
-                )
-                tipRow(
-                    symbol: "doc.text.magnifyingglass",
-                    title: "Quick Open",
-                    description: "Fuzzy-find any file in the active project",
-                    combo: "⌘P"
-                )
-                tipRow(
-                    symbol: "arrow.triangle.branch",
-                    title: "Source Control",
-                    description: "Stage per-hunk, resolve merge conflicts, open PRs",
-                    combo: "⌘K"
-                )
+    private var addProjectButton: some View {
+        Button {
+            ProjectOpenService.openProject(
+                appState: appState,
+                projectStore: projectStore,
+                worktreeStore: worktreeStore
+            )
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 12, weight: .bold))
+                Text("Add Project")
+                    .font(.system(size: 13, weight: .semibold))
+                Text(KeyBindingStore.shared.combo(for: .openProject).displayString)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .opacity(0.72)
             }
-            .background(MuxyTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(MuxyTheme.border, lineWidth: 0.5))
-        }
-    }
-
-    private func shortcutPill(label: String, combo: String) -> some View {
-        HStack(spacing: 6) {
-            Text(label)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(MuxyTheme.fg)
-            Text(combo)
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundStyle(MuxyTheme.fgMuted)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(MuxyTheme.bg, in: Capsule())
-                .overlay(Capsule().strokeBorder(MuxyTheme.border, lineWidth: 0.5))
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(MuxyTheme.surface, in: Capsule())
-        .overlay(Capsule().strokeBorder(MuxyTheme.border, lineWidth: 0.5))
-    }
-
-    private func tipRow(symbol: String, title: String, description: String, combo: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .font(.system(size: 13))
-                .foregroundStyle(MuxyTheme.fgMuted)
-                .frame(width: 20)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(MuxyTheme.fg)
-                Text(description)
-                    .font(.system(size: 11))
-                    .foregroundStyle(MuxyTheme.fgMuted)
+            .foregroundStyle(Color.white)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            .background {
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [MuxyTheme.accent, MuxyTheme.accent.opacity(0.75)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .shadow(color: MuxyTheme.accent.opacity(0.45), radius: 12, y: 4)
             }
-            Spacer(minLength: 12)
-            Text(combo)
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundStyle(MuxyTheme.fgMuted)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(MuxyTheme.bg, in: Capsule())
-                .overlay(Capsule().strokeBorder(MuxyTheme.border, lineWidth: 0.5))
+            .overlay(
+                Capsule()
+                    .strokeBorder(Color.white.opacity(0.22), lineWidth: 0.75)
+            )
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .buttonStyle(.plain)
     }
 }

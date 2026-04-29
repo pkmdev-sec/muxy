@@ -27,12 +27,12 @@ struct DiffSectionDivider: View {
         .background(MuxyTheme.bg)
         .overlay(alignment: .top) {
             if showsTopBorder {
-                Rectangle().fill(MuxyTheme.border).frame(height: 1)
+                Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
                     .accessibilityHidden(true)
             }
         }
         .overlay(alignment: .bottom) {
-            Rectangle().fill(MuxyTheme.border).frame(height: 1)
+            Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
                 .accessibilityHidden(true)
         }
         .accessibilityElement(children: .combine)

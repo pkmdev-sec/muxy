@@ -204,21 +204,39 @@ private struct AddProjectButton: View {
 
     private var collapsedLayout: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(MuxyTheme.hover)
-            Image(systemName: "plus")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(hovered ? MuxyTheme.accent : MuxyTheme.fgMuted)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(
+                    style: StrokeStyle(lineWidth: 1, dash: [3, 3])
+                )
+                .foregroundStyle(hovered ? MuxyTheme.accent.opacity(0.65) : MuxyGlass.borderStrong)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(hovered ? MuxyTheme.accent.opacity(0.10) : MuxyGlass.insetFill)
+                )
+                .overlay {
+                    Image(systemName: "plus")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(hovered ? MuxyTheme.accent : MuxyTheme.fgMuted)
+                        .scaleEffect(hovered ? 1.15 : 1)
+                }
         }
         .frame(width: 32, height: 32)
         .padding(3)
+        .animation(MuxyMotion.fast, value: hovered)
     }
 
     private var expandedLayout: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             ZStack {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(MuxyTheme.surface)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(
+                        style: StrokeStyle(lineWidth: 1, dash: [3, 3])
+                    )
+                    .foregroundStyle(hovered ? MuxyTheme.accent.opacity(0.65) : MuxyGlass.borderStrong)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(hovered ? MuxyTheme.accent.opacity(0.10) : MuxyGlass.insetFill)
+                    )
                 Image(systemName: "plus")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(hovered ? MuxyTheme.accent : MuxyTheme.fgMuted)
@@ -233,7 +251,11 @@ private struct AddProjectButton: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        .background(hovered ? MuxyTheme.hover : Color.clear, in: RoundedRectangle(cornerRadius: 8))
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(hovered ? MuxyGlass.hoverFill : Color.clear)
+        )
+        .animation(MuxyMotion.hover, value: hovered)
     }
 }
 

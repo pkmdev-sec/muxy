@@ -90,13 +90,17 @@ struct LogoCropperSheet: View {
 
     private var previewIcon: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(MuxyTheme.surface)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(MuxyGlass.insetFill)
                 .frame(width: 32, height: 32)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(MuxyGlass.borderSoft, lineWidth: 0.5)
+                )
 
             croppedPreview
                 .frame(width: 32, height: 32)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
     }
 
