@@ -642,6 +642,9 @@ struct MainWindow: View {
             PeerConnectionCommandSource(
                 notificationCenter: .default
             ),
+            PluginCommandSource(
+                host: .shared
+            ),
             WorkflowMacroCommandSource(
                 appState: appState,
                 macroStore: .shared,

@@ -925,3 +925,50 @@ struct PeerConnectionCommandSource: PaletteCommandSource {
         ]
     }
 }
+
+@MainActor
+struct PluginCommandSource: PaletteCommandSource {
+    let host: MuxyPluginHost
+
+    func commands() -> [PaletteCommand] {
+        var out: [PaletteCommand] = []
+        for command in host.paletteCommands {
+            let commandID = command.id
+            out.append(PaletteCommand(
+                id: commandID,
+                title: command.title,
+                subtitle: command.subtitle,
+                symbol: command.symbol,
+                group: .action,
+                shortcut: nil,
+                run: { [host] in
+                    host.invoke(commandID: commandID)
+                }
+            ))
+        }
+        out.append(PaletteCommand(
+            id: "plugin.reload",
+            title: "Reload Plugins",
+            subtitle: "Re-scan ~/Library/Application Support/Muxy/Plugins",
+            symbol: "arrow.clockwise",
+            group: .action,
+            shortcut: nil,
+            run: { [host] in
+                host.loadAll()
+                ToastState.shared.show("Reloaded \(host.loadedPlugins.count) plugin(s)")
+            }
+        ))
+        out.append(PaletteCommand(
+            id: "plugin.openFolder",
+            title: "Open Plugins Folder",
+            subtitle: "Drop .js files here and reload",
+            symbol: "folder",
+            group: .action,
+            shortcut: nil,
+            run: { [host] in
+                host.openPluginsDirectoryInFinder()
+            }
+        ))
+        return out
+    }
+}

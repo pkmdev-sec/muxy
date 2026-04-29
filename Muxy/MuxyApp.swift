@@ -76,6 +76,7 @@ struct MuxyApp: App {
                         area.createRemotePaneTab(state: state)
                     }
                     appDelegate.flushPendingOpens()
+                    MuxyPluginHost.shared.loadAll()
                     NotificationSocketServer.shared.openProjectHandler = { path in
                         Task { @MainActor in
                             (NSApp.delegate as? AppDelegate)?.handleOpenProjectPath(path)
