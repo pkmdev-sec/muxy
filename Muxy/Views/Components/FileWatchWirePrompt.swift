@@ -16,7 +16,12 @@ struct FileWatchWirePrompt: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.35).ignoresSafeArea().onTapGesture { onDismiss() }
+            MuxyOverlayScrim(onDismiss: onDismiss)
+            GlassPanel(
+                material: MuxyMaterials.overlayMaterial,
+                cornerRadius: 14,
+                elevation: .overlay
+            ) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 6) {
                     Image(systemName: "eye")
@@ -48,11 +53,9 @@ struct FileWatchWirePrompt: View {
                 }
             }
             .padding(16)
+            }
             .frame(width: 440)
-            .background(MuxyTheme.bg)
-            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(MuxyTheme.border, lineWidth: 0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .shadow(color: .black.opacity(0.4), radius: 18, y: 8)
+            .transition(.opacity.combined(with: .scale(scale: 0.98)))
         }
     }
 }

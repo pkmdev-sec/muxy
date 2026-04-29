@@ -20,11 +20,13 @@ struct WorkflowSavePrompt: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.35)
-                .ignoresSafeArea()
-                .onTapGesture { onDiscard() }
-
-            VStack(alignment: .leading, spacing: 10) {
+            MuxyOverlayScrim(onDismiss: onDiscard)
+            GlassPanel(
+                material: MuxyMaterials.overlayMaterial,
+                cornerRadius: 14,
+                elevation: .overlay
+            ) {
+                VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     Image(systemName: "play.square.stack")
                         .foregroundStyle(MuxyTheme.fgMuted)
@@ -59,15 +61,13 @@ struct WorkflowSavePrompt: View {
                         .keyboardShortcut(.defaultAction)
                         .disabled(trimmedName.isEmpty)
                 }
+                }
+                .padding(16)
             }
-            .padding(16)
             .frame(width: 420, height: 180)
-            .background(MuxyTheme.bg)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(MuxyTheme.border, lineWidth: 1))
-            .shadow(color: .black.opacity(0.4), radius: 20, y: 8)
             .accessibilityAddTraits(.isModal)
             .background(EscapeKeyCatcher(onEscape: onDiscard))
+            .transition(.opacity.combined(with: .scale(scale: 0.98)))
         }
         .onAppear { focused = true }
     }

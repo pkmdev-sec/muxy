@@ -16,11 +16,13 @@ struct ScrollbackCheckpointPrompt: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.35)
-                .ignoresSafeArea()
-                .onTapGesture { onDismiss() }
-
-            VStack(alignment: .leading, spacing: 10) {
+            MuxyOverlayScrim(onDismiss: onDismiss)
+            GlassPanel(
+                material: MuxyMaterials.overlayMaterial,
+                cornerRadius: 14,
+                elevation: .overlay
+            ) {
+                VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     Image(systemName: "bookmark.fill")
                         .foregroundStyle(MuxyTheme.fgMuted)
@@ -46,17 +48,15 @@ struct ScrollbackCheckpointPrompt: View {
                 Text("Captures current stream position for jump-to + export.")
                     .font(.system(size: 10))
                     .foregroundStyle(MuxyTheme.fgMuted)
+                }
+                .padding(16)
             }
-            .padding(16)
             .frame(width: 420, height: 140)
-            .background(MuxyTheme.bg)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(MuxyTheme.border, lineWidth: 1))
-            .shadow(color: .black.opacity(0.4), radius: 20, y: 8)
             .accessibilityAddTraits(.isModal)
             .background(
                 KeyEventCatcher(onEscape: onDismiss)
             )
+            .transition(.opacity.combined(with: .scale(scale: 0.98)))
         }
         .onAppear { focused = true }
     }

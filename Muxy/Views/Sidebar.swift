@@ -359,6 +359,50 @@ struct SidebarFooter: View {
         .help("Agent Inbox (\(shortcut))")
     }
 
+    private func postShowConnectPeer() {
+        NotificationCenter.default.post(name: .showConnectPeer, object: nil)
+    }
+
+    private func postShowDiagnostics() {
+        NotificationCenter.default.post(name: .showDiagnostics, object: nil)
+    }
+
+    @ViewBuilder
+    private var connectPeerSidebarButton: some View {
+        let shortcut = KeyBindingStore.shared.combo(for: .showConnectPeer).displayString
+        ZStack(alignment: .topTrailing) {
+            IconButton(symbol: "network", accessibilityLabel: "Connect to Peer") { postShowConnectPeer() }
+            if PeerClient.shared.state.isConnected {
+                Circle()
+                    .fill(Color.green)
+                    .frame(width: 7, height: 7)
+                    .offset(x: 4, y: -4)
+                    .accessibilityLabel("Peer connected")
+            }
+        }
+        .help("Connect to Peer (\(shortcut))")
+    }
+
+    @ViewBuilder
+    private var diagnosticsSidebarButton: some View {
+        let shortcut = KeyBindingStore.shared.combo(for: .showDiagnostics).displayString
+        let errors = LSPClient.shared.totalCount(severity: .error)
+        ZStack(alignment: .topTrailing) {
+            IconButton(symbol: "ladybug", accessibilityLabel: "Diagnostics") { postShowDiagnostics() }
+            if errors > 0 {
+                Text("\(errors)")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color.red, in: Capsule())
+                    .offset(x: 4, y: -4)
+                    .accessibilityLabel("\(errors) diagnostics")
+            }
+        }
+        .help("Diagnostics (\(shortcut))")
+    }
+
     private var previewProviderDisplay: (percent: Int, iconName: String)? {
         guard let selection = usageService.previewSelection(pinnedRawValue: pinnedPreviewProviderID),
               case .available = selection.snapshot.state
@@ -406,6 +450,8 @@ struct SidebarFooter: View {
                 aiUsageButton
             }
             agentInboxButton
+            connectPeerSidebarButton
+            diagnosticsSidebarButton
             IconButton(symbol: notificationBellIcon, accessibilityLabel: "Notifications") { showNotifications.toggle() }
                 .help("Notifications")
                 .popover(isPresented: $showNotifications) {
@@ -431,6 +477,8 @@ struct SidebarFooter: View {
                 aiUsageButton
             }
             agentInboxButton
+            connectPeerSidebarButton
+            diagnosticsSidebarButton
             IconButton(symbol: notificationBellIcon, accessibilityLabel: "Notifications") { showNotifications.toggle() }
                 .help("Notifications")
                 .popover(isPresented: $showNotifications) {

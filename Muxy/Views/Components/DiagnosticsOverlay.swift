@@ -8,22 +8,22 @@ struct DiagnosticsOverlay: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.3)
-                .ignoresSafeArea()
-                .onTapGesture { onDismiss() }
-
-            VStack(spacing: 0) {
-                header
-                Divider().overlay(MuxyTheme.border)
-                body(for: filtered())
+            MuxyOverlayScrim(onDismiss: onDismiss)
+            GlassPanel(
+                material: MuxyMaterials.overlayMaterial,
+                cornerRadius: 14,
+                elevation: .overlay
+            ) {
+                VStack(spacing: 0) {
+                    header
+                    Rectangle().fill(MuxyGlass.borderSoft).frame(height: 1)
+                    body(for: filtered())
+                }
             }
             .frame(width: 640, height: 520)
-            .background(MuxyTheme.bg)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(MuxyTheme.border, lineWidth: 1))
-            .shadow(color: .black.opacity(0.4), radius: 20, y: 8)
             .padding(.top, 60)
             .frame(maxHeight: .infinity, alignment: .top)
+            .transition(.opacity.combined(with: .move(edge: .top)))
         }
     }
 
