@@ -904,3 +904,24 @@ struct AgentCanvasCommandSource: PaletteCommandSource {
         return out
     }
 }
+
+@MainActor
+struct PeerConnectionCommandSource: PaletteCommandSource {
+    let notificationCenter: NotificationCenter
+
+    func commands() -> [PaletteCommand] {
+        [
+            PaletteCommand(
+                id: "peer.connect.open",
+                title: "Connect to Muxy Peer\u{2026}",
+                subtitle: "Pair with another Muxy over your local network",
+                symbol: "network",
+                group: .action,
+                shortcut: nil,
+                run: { [notificationCenter] in
+                    notificationCenter.post(name: .showConnectPeer, object: nil)
+                }
+            ),
+        ]
+    }
+}

@@ -1,0 +1,199 @@
+import SwiftUI
+import MuxyShared
+
+struct ConnectPeerOverlay: View {
+    let onDismiss: () -> Void
+
+    @State private var host = ""
+    @State private var port = String(PeerClient.defaultPort)
+    @State private var deviceName = Host.current().localizedName ?? "This Mac"
+    private let client = PeerClient.shared
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.35)
+                .ignoresSafeArea()
+                .onTapGesture { onDismiss() }
+
+            VStack(spacing: 0) {
+                header
+                Divider().overlay(MuxyTheme.border)
+                formSection
+                Divider().overlay(MuxyTheme.border)
+                projectsSection
+            }
+            .frame(width: 520, height: 460)
+            .background(MuxyTheme.bg)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(MuxyTheme.border, lineWidth: 1))
+            .shadow(color: .black.opacity(0.4), radius: 20, y: 8)
+            .padding(.top, 60)
+            .frame(maxHeight: .infinity, alignment: .top)
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "network")
+                .foregroundStyle(MuxyTheme.accent)
+                .font(.system(size: 13, weight: .semibold))
+            Text("Connect to Muxy Peer")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(MuxyTheme.fg)
+            Spacer()
+            statusChip
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(MuxyTheme.fgMuted)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    private var statusChip: some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 7, height: 7)
+            Text(client.state.displayLabel)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(MuxyTheme.fgMuted)
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 2)
+        .background(MuxyTheme.surface)
+        .clipShape(Capsule())
+        .overlay(Capsule().strokeBorder(MuxyTheme.border, lineWidth: 0.5))
+    }
+
+    private var statusColor: Color {
+        switch client.state {
+        case .idle: MuxyTheme.fgMuted
+        case .connecting, .pairing: .yellow
+        case .connected: .green
+        case .failed: .red
+        }
+    }
+
+    private var formSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                fieldLabel("Host")
+                TextField("192.168.1.42 or hostname.local", text: $host)
+                    .textFieldStyle(.roundedBorder)
+            }
+            HStack(spacing: 8) {
+                fieldLabel("Port")
+                TextField(String(PeerClient.defaultPort), text: $port)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 90)
+                fieldLabel("This device name")
+                TextField("Mac", text: $deviceName)
+                    .textFieldStyle(.roundedBorder)
+            }
+            HStack(spacing: 8) {
+                Spacer()
+                if client.state.isConnected {
+                    Button("Disconnect") {
+                        client.disconnect()
+                    }
+                    .buttonStyle(.bordered)
+                } else {
+                    Button("Connect") {
+                        let resolvedPort = UInt16(port) ?? PeerClient.defaultPort
+                        client.connect(
+                            host: host.trimmingCharacters(in: .whitespaces),
+                            port: resolvedPort,
+                            deviceName: deviceName
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(host.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .keyboardShortcut(.return)
+                }
+            }
+        }
+        .padding(14)
+    }
+
+    private func fieldLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(MuxyTheme.fgMuted)
+            .frame(width: 90, alignment: .trailing)
+    }
+
+    @ViewBuilder
+    private var projectsSection: some View {
+        if client.state.isConnected {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Peer projects")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(MuxyTheme.fgMuted)
+                    Spacer()
+                    Button("Refresh") {
+                        Task { await client.refreshProjects() }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(MuxyTheme.accent)
+                }
+                if client.remoteProjects.isEmpty {
+                    Text("No projects on peer")
+                        .font(.system(size: 11))
+                        .foregroundStyle(MuxyTheme.fgMuted)
+                } else {
+                    ScrollView(.vertical, showsIndicators: true) {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(client.remoteProjects, id: \.id) { project in
+                                projectRow(project)
+                            }
+                        }
+                    }
+                }
+                Spacer()
+            }
+            .padding(14)
+        } else {
+            VStack(spacing: 8) {
+                Spacer()
+                Image(systemName: "lock.shield")
+                    .font(.system(size: 24))
+                    .foregroundStyle(MuxyTheme.fgMuted)
+                Text("Pair with another Muxy")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(MuxyTheme.fg)
+                Text("Peer must approve the pairing from their Mac.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(MuxyTheme.fgMuted)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func projectRow(_ project: ProjectDTO) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "folder")
+                .foregroundStyle(MuxyTheme.fgMuted)
+                .font(.system(size: 11))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(project.name)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(MuxyTheme.fg)
+                Text(project.path)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(MuxyTheme.fgMuted)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 5)
+    }
+}

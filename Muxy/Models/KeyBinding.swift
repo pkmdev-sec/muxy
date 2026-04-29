@@ -66,6 +66,7 @@ enum ShortcutAction: String, Codable, CaseIterable, Identifiable {
     case addScrollbackCheckpoint
     case showScrollbackHistory
     case toggleWorkflowRecording
+    case showConnectPeer
 
     static let allCases: [Self] = [
         .newTab,
@@ -125,6 +126,7 @@ enum ShortcutAction: String, Codable, CaseIterable, Identifiable {
         .addScrollbackCheckpoint,
         .showScrollbackHistory,
         .toggleWorkflowRecording,
+        .showConnectPeer,
     ]
 
     var id: String { rawValue }
@@ -189,6 +191,7 @@ enum ShortcutAction: String, Codable, CaseIterable, Identifiable {
         case .addScrollbackCheckpoint: ShortcutMetadata(displayName: "Drop Scrollback Checkpoint", category: "Terminal", scope: .mainWindow)
         case .showScrollbackHistory: ShortcutMetadata(displayName: "Scrollback History", category: "App", scope: .mainWindow)
         case .toggleWorkflowRecording: ShortcutMetadata(displayName: "Record Workflow", category: "App", scope: .mainWindow)
+        case .showConnectPeer: ShortcutMetadata(displayName: "Connect to Peer", category: "App", scope: .mainWindow)
         }
     }
 
@@ -313,5 +316,6 @@ struct KeyBinding: Codable, Identifiable {
         Self(action: .addScrollbackCheckpoint, combo: KeyCombo(key: "m", command: true, shift: true)),
         Self(action: .showScrollbackHistory, combo: KeyCombo(key: "h", command: true, shift: true)),
         Self(action: .toggleWorkflowRecording, combo: KeyCombo(key: "r", command: true, option: true)),
+        Self(action: .showConnectPeer, combo: KeyCombo(key: "n", command: true, shift: true)),
     ]
 }

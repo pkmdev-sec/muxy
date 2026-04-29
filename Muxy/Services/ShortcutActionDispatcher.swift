@@ -185,6 +185,9 @@ struct ShortcutActionDispatcher {
         case .toggleWorkflowRecording:
             notificationCenter.post(name: .toggleWorkflowRecording, object: nil)
             return true
+        case .showConnectPeer:
+            notificationCenter.post(name: .showConnectPeer, object: nil)
+            return true
         case .navigateBack:
             guard appState.navigation.canGoBack else { return false }
             appState.goBack()

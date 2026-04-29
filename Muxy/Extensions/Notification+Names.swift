@@ -23,4 +23,5 @@ extension Notification.Name {
     static let addScrollbackCheckpoint = Notification.Name("MuxyAddScrollbackCheckpoint")
     static let showScrollbackHistory = Notification.Name("MuxyShowScrollbackHistory")
     static let toggleWorkflowRecording = Notification.Name("MuxyToggleWorkflowRecording")
+    static let showConnectPeer = Notification.Name("MuxyShowConnectPeer")
 }
