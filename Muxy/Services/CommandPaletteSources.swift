@@ -972,3 +972,56 @@ struct PluginCommandSource: PaletteCommandSource {
         return out
     }
 }
+
+@MainActor
+struct DiagnosticsCommandSource: PaletteCommandSource {
+    let appState: AppState
+    let projectStore: ProjectStore
+    let notificationCenter: NotificationCenter
+
+    func commands() -> [PaletteCommand] {
+        var out: [PaletteCommand] = []
+        out.append(PaletteCommand(
+            id: "lsp.showDiagnostics",
+            title: "Show Diagnostics",
+            subtitle: "Browse errors/warnings from sourcekit-lsp",
+            symbol: "ladybug",
+            group: .action,
+            shortcut: nil,
+            run: { [notificationCenter] in
+                notificationCenter.post(name: .showDiagnostics, object: nil)
+            }
+        ))
+        out.append(PaletteCommand(
+            id: "lsp.startLSP",
+            title: "Start Language Server",
+            subtitle: "Launch sourcekit-lsp for the active project",
+            symbol: "bolt.horizontal",
+            group: .action,
+            shortcut: nil,
+            run: { [appState, projectStore] in
+                guard let projectID = appState.activeProjectID,
+                      let project = projectStore.projects.first(where: { $0.id == projectID })
+                else {
+                    ToastState.shared.show("Open a project first")
+                    return
+                }
+                LSPClient.shared.start(rootPath: project.path)
+                ToastState.shared.show("Starting sourcekit-lsp for \(project.name)")
+            }
+        ))
+        out.append(PaletteCommand(
+            id: "lsp.stopLSP",
+            title: "Stop Language Server",
+            subtitle: "Terminate sourcekit-lsp",
+            symbol: "bolt.slash",
+            group: .action,
+            shortcut: nil,
+            run: {
+                LSPClient.shared.stop()
+                ToastState.shared.show("sourcekit-lsp stopped")
+            }
+        ))
+        return out
+    }
+}

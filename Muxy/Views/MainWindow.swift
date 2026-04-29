@@ -65,6 +65,7 @@ struct MainWindow: View {
     @State private var scrollbackCheckpointPrompt: ScrollbackCheckpointPromptState?
     @State private var workflowSavePrompt: WorkflowSavePromptState?
     @State private var showConnectPeer = false
+    @State private var showDiagnostics = false
     @State private var isFullScreen = false
     @State private var sidebarExpanded = UserDefaults.standard.bool(forKey: "muxy.sidebarExpanded")
     @AppStorage("muxy.notifications.toastPosition") private var toastPositionRaw = ToastPosition.topCenter.rawValue
@@ -244,6 +245,7 @@ struct MainWindow: View {
             scrollbackCheckpointPrompt: $scrollbackCheckpointPrompt,
             workflowSavePrompt: $workflowSavePrompt,
             showConnectPeer: $showConnectPeer,
+            showDiagnostics: $showDiagnostics,
             activeProject: activeProject,
             activeWorktreePath: activeProject.map { activeWorktreePath(for: $0) } ?? "",
             projectStore: projectStore,
@@ -644,6 +646,11 @@ struct MainWindow: View {
             ),
             PluginCommandSource(
                 host: .shared
+            ),
+            DiagnosticsCommandSource(
+                appState: appState,
+                projectStore: projectStore,
+                notificationCenter: .default
             ),
             WorkflowMacroCommandSource(
                 appState: appState,
@@ -1130,6 +1137,7 @@ private struct MainWindowExtraOverlays: ViewModifier {
     @Binding var scrollbackCheckpointPrompt: ScrollbackCheckpointPromptState?
     @Binding var workflowSavePrompt: WorkflowSavePromptState?
     @Binding var showConnectPeer: Bool
+    @Binding var showDiagnostics: Bool
     let activeProject: Project?
     let activeWorktreePath: String
     let projectStore: ProjectStore
@@ -1216,14 +1224,27 @@ private struct MainWindowExtraOverlays: ViewModifier {
             .onReceive(NotificationCenter.default.publisher(for: .showConnectPeer)) { _ in
                 showConnectPeer.toggle()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .showDiagnostics)) { _ in
+                showDiagnostics.toggle()
+            }
             .overlay { connectPeerOverlay }
+            .overlay { diagnosticsOverlayView }
             .animation(.easeInOut(duration: 0.15), value: showConnectPeer)
+            .animation(.easeInOut(duration: 0.15), value: showDiagnostics)
     }
 
     @ViewBuilder
     private var connectPeerOverlay: some View {
         if showConnectPeer {
             ConnectPeerOverlay(onDismiss: { showConnectPeer = false })
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        }
+    }
+
+    @ViewBuilder
+    private var diagnosticsOverlayView: some View {
+        if showDiagnostics {
+            DiagnosticsOverlay(onDismiss: { showDiagnostics = false })
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
         }
     }

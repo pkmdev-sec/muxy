@@ -188,6 +188,15 @@ struct ShortcutActionDispatcher {
         case .showConnectPeer:
             notificationCenter.post(name: .showConnectPeer, object: nil)
             return true
+        case .showDiagnostics:
+            notificationCenter.post(name: .showDiagnostics, object: nil)
+            return true
+        case .startLSP:
+            if let project = activeProject {
+                LSPClient.shared.start(rootPath: project.path)
+                ToastState.shared.show("Starting sourcekit-lsp")
+            }
+            return true
         case .navigateBack:
             guard appState.navigation.canGoBack else { return false }
             appState.goBack()

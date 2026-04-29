@@ -67,6 +67,8 @@ enum ShortcutAction: String, Codable, CaseIterable, Identifiable {
     case showScrollbackHistory
     case toggleWorkflowRecording
     case showConnectPeer
+    case showDiagnostics
+    case startLSP
 
     static let allCases: [Self] = [
         .newTab,
@@ -127,6 +129,8 @@ enum ShortcutAction: String, Codable, CaseIterable, Identifiable {
         .showScrollbackHistory,
         .toggleWorkflowRecording,
         .showConnectPeer,
+        .showDiagnostics,
+        .startLSP,
     ]
 
     var id: String { rawValue }
@@ -192,6 +196,8 @@ enum ShortcutAction: String, Codable, CaseIterable, Identifiable {
         case .showScrollbackHistory: ShortcutMetadata(displayName: "Scrollback History", category: "App", scope: .mainWindow)
         case .toggleWorkflowRecording: ShortcutMetadata(displayName: "Record Workflow", category: "App", scope: .mainWindow)
         case .showConnectPeer: ShortcutMetadata(displayName: "Connect to Peer", category: "App", scope: .mainWindow)
+        case .showDiagnostics: ShortcutMetadata(displayName: "Diagnostics", category: "App", scope: .mainWindow)
+        case .startLSP: ShortcutMetadata(displayName: "Start Language Server", category: "App", scope: .mainWindow)
         }
     }
 
@@ -317,5 +323,6 @@ struct KeyBinding: Codable, Identifiable {
         Self(action: .showScrollbackHistory, combo: KeyCombo(key: "h", command: true, shift: true)),
         Self(action: .toggleWorkflowRecording, combo: KeyCombo(key: "r", command: true, option: true)),
         Self(action: .showConnectPeer, combo: KeyCombo(key: "n", command: true, shift: true)),
+        Self(action: .showDiagnostics, combo: KeyCombo(key: "j", command: true, shift: true)),
     ]
 }
