@@ -20,6 +20,7 @@ struct TerminalPane: View {
             TerminalBridge(
                 state: state,
                 focused: focused,
+                visible: visible,
                 onFocus: onFocus,
                 onProcessExit: onProcessExit,
                 onSplitRequest: onSplitRequest
@@ -102,6 +103,7 @@ struct RemoteControlledPlaceholder: View {
 struct TerminalBridge: NSViewRepresentable {
     let state: TerminalPaneState
     let focused: Bool
+    let visible: Bool
     let onFocus: () -> Void
     let onProcessExit: () -> Void
     let onSplitRequest: (SplitDirection, SplitPosition) -> Void
@@ -111,6 +113,7 @@ struct TerminalBridge: NSViewRepresentable {
     final class Coordinator {
         var wasFocused = false
         var wasOverlayActive = false
+        var titleCallbackInstalled = false
     }
 
     func makeCoordinator() -> Coordinator {
@@ -128,19 +131,23 @@ struct TerminalBridge: NSViewRepresentable {
             view.envVars = Self.buildEnvVars(paneID: state.id, worktreeKey: key)
         }
         view.isFocused = focused
+        view.isVisible = visible
         view.overlayActive = overlayActive
         view.onFocus = onFocus
         view.onProcessExit = onProcessExit
         view.onSplitRequest = onSplitRequest
-        view.onTitleChange = { [weak state] title in
-            DispatchQueue.main.async {
-                state?.setTitle(title)
+        if !context.coordinator.titleCallbackInstalled {
+            view.onTitleChange = { [weak state] title in
+                DispatchQueue.main.async {
+                    state?.setTitle(title)
+                }
             }
+            context.coordinator.titleCallbackInstalled = true
         }
         configureSearchCallbacks(view)
         context.coordinator.wasFocused = focused
         if focused, !overlayActive {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            DispatchQueue.main.async {
                 view.window?.makeFirstResponder(view)
             }
         }
@@ -152,13 +159,17 @@ struct TerminalBridge: NSViewRepresentable {
             nsView.envVars = Self.buildEnvVars(paneID: state.id, worktreeKey: key)
         }
         nsView.overlayActive = overlayActive
+        nsView.isVisible = visible
         nsView.onFocus = onFocus
         nsView.onProcessExit = onProcessExit
         nsView.onSplitRequest = onSplitRequest
-        nsView.onTitleChange = { [weak state] title in
-            DispatchQueue.main.async {
-                state?.setTitle(title)
+        if !context.coordinator.titleCallbackInstalled {
+            nsView.onTitleChange = { [weak state] title in
+                DispatchQueue.main.async {
+                    state?.setTitle(title)
+                }
             }
+            context.coordinator.titleCallbackInstalled = true
         }
         configureSearchCallbacks(nsView)
         let wasFocused = context.coordinator.wasFocused

@@ -1085,3 +1085,46 @@ Until the handshake succeeds the server rejects every other RPC with
 in that set. The `Mobile` tab in Settings lists approved devices with a Revoke
 action, which removes the device from storage and terminates any active
 connection for that `deviceID` via `MuxyRemoteServer.disconnect(deviceID:)`.
+
+## Rendering & Performance
+
+Muxy is tuned to stay on the main thread's frame budget so native 120 Hz ProMotion displays and 60 Hz panels stay smooth. The rules below describe how the rendering and input path is wired.
+
+### Terminal frame pacing
+
+- Each terminal pane owns a `GhosttyTerminalNSView` whose `CAMetalLayer` is driven by libghostty's render thread. Presentation is vsynced by CoreAnimation — we never spin a CPU-side frame timer.
+- When libghostty has new work it invokes the runtime `wakeup_cb`. `GhosttyRuntimeEventAdapter.wakeup()` routes through `GhosttyService.scheduleTick()`, which coalesces bursts into a single `ghostty_app_tick` call on the main queue via `CoalescedTickScheduler`. High-volume output (e.g. `cat` on a large file) produces at most one tick per runloop cycle instead of flooding the main queue.
+- `ghostty_surface_set_occlusion` is kept in sync with AppKit's `NSWindow.occlusionState` and with the `visible` flag SwiftUI forwards to hidden ZStack tabs. Off-screen surfaces pause their render loop automatically.
+- `GhosttyService` caches `background/foreground/accent/palette` colors keyed on `configVersion`. Every editor-side and theme-side color read is an O(1) hash lookup; only `reloadConfig` invalidates the caches.
+
+### Input path
+
+- `KeyBindingStore.action(for:scopes:)` consults a pre-built `[LookupKey: ShortcutAction]` dictionary. A keystroke performs one hashed lookup instead of an O(N) scan over every action. The cache is rebuilt on `updateBinding`, `resetToDefaults`, or `load()`.
+- Terminal focus: `TerminalBridge.makeNSView` posts the `makeFirstResponder` hop to the next runloop pass (no 100 ms sleep). The `onTitleChange` closure is installed once per coordinator instead of re-allocated on every `updateNSView`.
+
+### Persistence
+
+- JSON encode + disk writes **must not run on the main actor**. All stores now expose an `*Async` path that offloads encoding + atomic write to a shared background queue (`CodableFileStore.saveAsync`, `FileWorkspacePersistence.saveWorkspacesAsync`, `FileProjectPersistence.saveProjectsAsync`, `FileWorktreePersistence.saveWorktreesAsync`).
+- `AppState.saveWorkspaces` dispatches to the async path; `saveWorkspacesImmediately` is reserved for termination (`applicationWillTerminate`).
+- `NotificationStore.saveToDisk` encodes on main (required because `MuxyNotification` is `@MainActor`) but writes on a background queue. The file save itself is debounced on a 2 s `Task.sleep`.
+- Snapshot DTOs (`WorkspaceSnapshot`, `ProjectDTO`, etc.) conform to `Sendable` via extensions so they can cross the main-actor boundary safely.
+
+### Editor hot path
+
+- `ViewportState.viewportBuffer = 200` keeps reloads bounded to a ~200-line window above/below the visible range. `scrollHysteresis = 200` avoids reload churn while the user flicks scroll.
+- `CodeEditorRepresentable.refreshViewport` now guards `storage.addAttribute(.font, …)` on `lastAppliedFont != font`. Font re-application only happens when the viewport text actually changed or the font was swapped.
+- Search uses `TextBackingStore.searchDetailed`, which compiles the regex once and returns `invalidRegex` as part of the result — no duplicate `NSRegularExpression(pattern:)` validate pass per needle keystroke.
+- `SyntaxGrammar.keywordLookup` is a pre-built `[String: SyntaxScope]` table. Tokenization does a single dictionary lookup per identifier instead of `N × Set.contains`.
+
+### Observability discipline
+
+`@Observable` classes must reserve `@ObservationIgnored` for fields that change at input rates but aren't read by SwiftUI directly. Current carve-outs:
+
+- `EditorTabState.backingStoreVersion`, `EditorTabState.currentSelection` — only read by the `CodeEditorRepresentable` coordinator.
+- `KeyBindingStore.lookupCache` — mutated on load/update, never observed from SwiftUI.
+- `GhosttyService` color caches and `coalescedTickScheduler` — internal, main-actor only.
+
+### Where to look next
+
+- `GitDirectoryWatcher` → `VCSTabState.refresh` fan-out is still serial per expanded file. Safe to batch with a per-repo concurrency cap if "Expand All" on hundreds of files becomes a real workflow.
+- `RemoteServerDelegate.getVCSStatus` now uses `async let` to run `aheadBehind | changedFiles | defaultBranch | headSha` concurrently after `currentBranch`. Further wins are possible by caching the negative-PR sentinel so feature branches without PRs stop re-probing `gh` every refresh.

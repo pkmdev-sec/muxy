@@ -433,8 +433,8 @@ struct SyntaxTokenizer {
     ) {
         let lookup = grammar.caseSensitiveKeywords ? match.word : match.word.lowercased()
         let spanLength = match.end - match.start
-        for group in grammar.keywordGroups where group.words.contains(lookup) {
-            tokens.append(TokenSpan(location: match.start, length: spanLength, scope: group.scope))
+        if let scope = grammar.keywordLookup[lookup] {
+            tokens.append(TokenSpan(location: match.start, length: spanLength, scope: scope))
             return
         }
 

@@ -5,8 +5,11 @@ private let logger = Logger(subsystem: "app.muxy", category: "MuxyNotificationHo
 
 enum MuxyNotificationHooks {
     private static let hookScriptName = "muxy-claude-hook"
+    private static let cachedHookScriptPath: String? = resolveHookScriptPath()
 
-    static var hookScriptPath: String? {
+    static var hookScriptPath: String? { cachedHookScriptPath }
+
+    private static func resolveHookScriptPath() -> String? {
         if let bundled = findBundledScript(hookScriptName, extension: "sh") {
             return bundled
         }

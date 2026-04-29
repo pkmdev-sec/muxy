@@ -1,8 +1,9 @@
 import Foundation
 
-protocol ProjectPersisting {
+protocol ProjectPersisting: Sendable {
     func loadProjects() throws -> [Project]
     func saveProjects(_ projects: [Project]) throws
+    func saveProjectsAsync(_ projects: [Project])
 }
 
 final class FileProjectPersistence: ProjectPersisting {
@@ -18,5 +19,9 @@ final class FileProjectPersistence: ProjectPersisting {
 
     func saveProjects(_ projects: [Project]) throws {
         try store.save(projects)
+    }
+
+    func saveProjectsAsync(_ projects: [Project]) {
+        store.saveAsync(projects)
     }
 }

@@ -137,6 +137,14 @@ final class AppState {
             workspaceRoots: workspaceRoots,
             focusedAreaID: focusedAreaID
         )
+        workspacePersistence.saveWorkspacesAsync(snapshots)
+    }
+
+    func saveWorkspacesImmediately() {
+        let snapshots = WorkspaceRestorer.snapshotAll(
+            workspaceRoots: workspaceRoots,
+            focusedAreaID: focusedAreaID
+        )
         do {
             try workspacePersistence.saveWorkspaces(snapshots)
         } catch {

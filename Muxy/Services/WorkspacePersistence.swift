@@ -1,8 +1,9 @@
 import Foundation
 
-protocol WorkspacePersisting {
+protocol WorkspacePersisting: Sendable {
     func loadWorkspaces() throws -> [WorkspaceSnapshot]
     func saveWorkspaces(_ workspaces: [WorkspaceSnapshot]) throws
+    func saveWorkspacesAsync(_ workspaces: [WorkspaceSnapshot])
 }
 
 final class FileWorkspacePersistence: WorkspacePersisting {
@@ -18,5 +19,9 @@ final class FileWorkspacePersistence: WorkspacePersisting {
 
     func saveWorkspaces(_ workspaces: [WorkspaceSnapshot]) throws {
         try store.save(workspaces)
+    }
+
+    func saveWorkspacesAsync(_ workspaces: [WorkspaceSnapshot]) {
+        store.saveAsync(workspaces)
     }
 }

@@ -532,6 +532,7 @@ struct CodeEditorView: NSViewRepresentable {
         private var highlightTimingCount = 0
         private var lastRefreshDurationMs: Double = 0
         private var lastHighlightDurationMs: Double = 0
+        private var lastAppliedFont: NSFont?
         private var previewRefreshTask: Task<Void, Never>?
         private var pendingCascadeReapplyGeneration: UInt64 = 0
 
@@ -682,10 +683,14 @@ struct CodeEditorView: NSViewRepresentable {
             }
             let font = editorSettings.resolvedFont
             if let storage = textView.textStorage, storage.length > 0 {
-                let fullRange = NSRange(location: 0, length: storage.length)
-                storage.beginEditing()
-                storage.addAttribute(.font, value: font, range: fullRange)
-                storage.endEditing()
+                let fontChanged = lastAppliedFont != font
+                if fontChanged || text != nil {
+                    let fullRange = NSRange(location: 0, length: storage.length)
+                    storage.beginEditing()
+                    storage.addAttribute(.font, value: font, range: fullRange)
+                    storage.endEditing()
+                    lastAppliedFont = font
+                }
                 applySyntaxHighlights(storage: storage, viewport: viewport)
             }
 
@@ -1042,16 +1047,19 @@ struct CodeEditorView: NSViewRepresentable {
                 applySearchHighlights()
                 return
             }
-            if useRegex {
-                if (try? NSRegularExpression(pattern: needle)) == nil {
-                    state.searchInvalidRegex = true
-                    state.searchMatchCount = 0
-                    state.searchCurrentIndex = 0
-                    applySearchHighlights()
-                    return
-                }
+            let result = store.searchDetailed(
+                needle: needle,
+                caseSensitive: caseSensitive,
+                useRegex: useRegex
+            )
+            if result.invalidRegex {
+                state.searchInvalidRegex = true
+                state.searchMatchCount = 0
+                state.searchCurrentIndex = 0
+                applySearchHighlights()
+                return
             }
-            viewportSearchMatches = store.search(needle: needle, caseSensitive: caseSensitive, useRegex: useRegex)
+            viewportSearchMatches = result.matches
             state.searchMatchCount = viewportSearchMatches.count
             if !viewportSearchMatches.isEmpty {
                 state.searchCurrentIndex = 1
@@ -1170,9 +1178,6 @@ struct CodeEditorView: NSViewRepresentable {
             let estimatedHeight = viewport.estimatedLineHeight * CGFloat(max(1, visibleLineCount))
                 + textView.textContainerInset.height * 2
             let viewportWidth = viewportContentWidth(for: textView, scrollView: scrollView)
-            if let layoutManager = textView.layoutManager, let textContainer = textView.textContainer {
-                layoutManager.ensureLayout(for: textContainer)
-            }
             let laidOutHeight: CGFloat = if let layoutManager = textView.layoutManager, let textContainer = textView.textContainer {
                 ceil(layoutManager.usedRect(for: textContainer).height + textView.textContainerInset.height * 2)
             } else {

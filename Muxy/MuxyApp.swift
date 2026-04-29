@@ -45,7 +45,7 @@ struct MuxyApp: App {
                     NotificationStore.shared.worktreeStore = worktreeStore
                     NotificationStore.shared.markAllAsRead()
                     appDelegate.onTerminate = { [appState] in
-                        appState.saveWorkspaces()
+                        appState.saveWorkspacesImmediately()
                     }
                     appDelegate.hasUnsavedEditorTabs = { [appState] in
                         appState.unsavedEditorTabs()

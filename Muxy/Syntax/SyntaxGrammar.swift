@@ -37,6 +37,7 @@ struct SyntaxGrammar {
     let blockComments: [BlockCommentRule]
     let strings: [StringRule]
     let keywordGroups: [KeywordGroup]
+    let keywordLookup: [String: SyntaxScope]
     let supportsNumbers: Bool
     let supportsHashDirectives: Bool
     let hashDirectiveScope: SyntaxScope
@@ -78,6 +79,13 @@ struct SyntaxGrammar {
         self.blockComments = blockComments
         self.strings = strings
         self.keywordGroups = keywordGroups
+        var lookup: [String: SyntaxScope] = [:]
+        for group in keywordGroups {
+            for word in group.words {
+                lookup[word] = group.scope
+            }
+        }
+        self.keywordLookup = lookup
         self.supportsNumbers = supportsNumbers
         self.supportsHashDirectives = supportsHashDirectives
         self.hashDirectiveScope = hashDirectiveScope
